@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: linkcraft-ai-backend
+    env: node
+    region: oregon
+    buildCommand: npm run build
+    startCommand: npm run start:prod
+    healthCheckPath: /
+    envVars:
+      - key: NODE_ENV
+        value: production
