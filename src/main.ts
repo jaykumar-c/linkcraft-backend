@@ -11,7 +11,11 @@ async function bootstrap() {
   // Security
   app.use(helmet());
   app.enableCors({
-    origin: ["http://localhost:5173", "http://localhost:5174", "https://initiative-joyce-synthetic-relative.trycloudflare.co"],
+    origin: [
+      "http://localhost:5173",
+      "http://localhost:5174",
+      "https://app-linkcraft-ai.vercel.app",
+    ],
     credentials: true,
   });
 
