@@ -4,7 +4,7 @@
   "description": "Backend API for LinkCraft AI",
   "private": true,
   "scripts": {
-    "build": "nest build && cp -r src/modules/mail/templates dist/src/modules/mail/",
+    "build": "nest build && mkdir -p dist/modules/mail && cp -r src/modules/mail/templates dist/modules/mail/",
     "start": "nest start",
     "start:dev": "nest start --watch",
     "start:debug": "nest start --debug --watch",
