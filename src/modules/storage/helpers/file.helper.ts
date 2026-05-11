@@ -17,7 +17,7 @@ export const validateFile = (file: FileLike): FileValidationResult => {
     return {
       isValid: false,
       error: "No file provided",
-      errorCode: "STORAGE001",
+      errorCode: "STG001",
     };
   }
 
@@ -25,7 +25,7 @@ export const validateFile = (file: FileLike): FileValidationResult => {
     return {
       isValid: false,
       error: `File size exceeds the maximum allowed size of ${STORAGE_MAX_FILE_SIZE / (1024 * 1024)}MB`,
-      errorCode: "STORAGE001",
+      errorCode: "STG002",
     };
   }
 
@@ -34,7 +34,7 @@ export const validateFile = (file: FileLike): FileValidationResult => {
     return {
       isValid: false,
       error: "File type not allowed. Only JPEG, PNG, WebP, and PDF files are accepted.",
-      errorCode: "STORAGE002",
+      errorCode: "STG012",
     };
   }
 
@@ -43,7 +43,7 @@ export const validateFile = (file: FileLike): FileValidationResult => {
     return {
       isValid: false,
       error: "File extension not allowed.",
-      errorCode: "STORAGE002",
+      errorCode: "STG013",
     };
   }
 
@@ -57,7 +57,7 @@ export const validateBulkFiles = (
     return {
       isValid: false,
       error: "No files provided",
-      errorCode: "STORAGE001",
+      errorCode: "STG014",
     };
   }
 

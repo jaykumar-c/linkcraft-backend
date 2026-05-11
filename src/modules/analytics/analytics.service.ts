@@ -4,7 +4,7 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
-import { Repository, Between } from "typeorm";
+import { Repository } from "typeorm";
 import { Analytics } from "./entities/analytics.entity";
 import { Link } from "../links/entities/link.entity";
 import { CreateAnalyticsDto } from "./dto/create-analytics.dto";
@@ -21,19 +21,17 @@ export class AnalyticsService {
   ) {}
 
   async trackLinkClick(dto: CreateAnalyticsDto) {
-    // Verify link exists and is active
     const link = await this.linkRepository.findOne({
       where: { id: dto.linkId, isDeleted: false, isActive: true },
     });
 
     if (!link) {
       throw new NotFoundException({
-        errorCode: "LINK002",
+        errorCode: "ANC001",
         message: "Link not found or inactive.",
       });
     }
 
-    // Create analytics record
     const analytics = this.analyticsRepository.create({
       linkId: dto.linkId,
       userId: link.userId,
@@ -51,26 +49,21 @@ export class AnalyticsService {
     });
 
     await this.analyticsRepository.save(analytics);
-
-    // Increment link click count
     await this.linkRepository.increment({ id: dto.linkId }, "clickCount", 1);
 
     return {
-      message: "Analytics tracked successfully",
-      errorCode: "ANALYTICS_TRACKED",
-      data: null,
+      errorCode: "ANC002",
     };
   }
 
   async getLinkAnalytics(userId: string, dto: LinkAnalyticsQueryDto) {
-    // Verify link ownership
     const link = await this.linkRepository.findOne({
       where: { id: dto.linkId, userId, isDeleted: false },
     });
 
     if (!link) {
       throw new NotFoundException({
-        errorCode: "LINK002",
+        errorCode: "ANC003",
         message: "Link not found or you do not have permission.",
       });
     }
@@ -118,7 +111,6 @@ export class AnalyticsService {
 
     const [analytics, total] = await query.getManyAndCount();
 
-    // Get aggregated stats
     const stats = await this.analyticsRepository.query(
       `
       SELECT
@@ -133,8 +125,7 @@ export class AnalyticsService {
     );
 
     return {
-      message: "Link analytics fetched successfully",
-      errorCode: "LINK_ANALYTICS",
+      errorCode: "ANC004",
       data: {
         analytics,
         stats: stats[0] || {
@@ -187,8 +178,7 @@ export class AnalyticsService {
     const clickRate = totalViews > 0 ? ((totalClicks / totalViews) * 100).toFixed(1) : "0";
 
     return {
-      message: "Analytics overview fetched successfully",
-      errorCode: "ANALYTICS_OVERVIEW",
+      errorCode: "ANC005",
       data: {
         totalViews,
         totalClicks,

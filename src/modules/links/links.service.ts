@@ -4,12 +4,15 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
-import { Repository, Between } from "typeorm";
+import { Repository } from "typeorm";
 import { Link } from "./entities/link.entity";
-import { User } from "../users/entities/user.entity";
 import { getCurrentTimestampSeconds } from "src/common/helpers/date.helper";
-import { detectPlatform, normalizeUrl } from "./helpers/platform-detector.helper";
+import {
+  detectPlatform,
+  normalizeUrl,
+} from "./helpers/platform-detector.helper";
 import { reorderLinks } from "./helpers/link.helper";
+import { updateOnlyDefinedFields } from "src/common/helpers/update-defined-field.helper";
 import { CreateLinkDto } from "./dto/create-link.dto";
 import { UpdateLinkDto } from "./dto/update-link.dto";
 import { LinkQueryDto } from "./dto/link-query.dto";
@@ -23,13 +26,12 @@ export class LinksService {
   constructor(
     @InjectRepository(Link)
     private linkRepository: Repository<Link>,
-  ) { }
+  ) {}
 
   async createLink(userId: string, dto: CreateLinkDto) {
     const normalizedUrl = normalizeUrl(dto.url);
     const { platform, linkType } = detectPlatform(normalizedUrl);
 
-    // Check for duplicate URL per user
     const existingLink = await this.linkRepository.findOne({
       where: {
         userId,
@@ -40,7 +42,7 @@ export class LinksService {
 
     if (existingLink) {
       throw new BadRequestException({
-        errorCode: "LINK001",
+        errorCode: "LNK001",
         message: "A link with this URL already exists.",
       });
     }
@@ -65,7 +67,7 @@ export class LinksService {
 
     return {
       message: "Link created successfully",
-      errorCode: "LINK_CREATED",
+      errorCode: "LNK002",
       data: link,
     };
   }
@@ -77,7 +79,7 @@ export class LinksService {
 
     if (!link) {
       throw new NotFoundException({
-        errorCode: "LINK002",
+        errorCode: "LNK003",
         message: "Link not found or you do not have permission.",
       });
     }
@@ -97,7 +99,7 @@ export class LinksService {
 
       if (duplicateLink && duplicateLink.id !== linkId) {
         throw new BadRequestException({
-          errorCode: "LINK001",
+          errorCode: "LNK001",
           message: "A link with this URL already exists.",
         });
       }
@@ -112,25 +114,28 @@ export class LinksService {
       }
     }
 
-    // Update fields
-    if (dto.title !== undefined) link.title = dto.title;
-    if (dto.description !== undefined) link.description = dto.description;
-    if (dto.iconUrl !== undefined) link.iconUrl = dto.iconUrl;
-    if (dto.thumbnailUrl !== undefined) link.thumbnailUrl = dto.thumbnailUrl;
-    if (dto.linkType !== undefined) link.linkType = dto.linkType as LinkType;
-    if (dto.category !== undefined) link.category = dto.category;
-    if (dto.displayOrder !== undefined) link.orderIndex = dto.displayOrder;
-    if (dto.isActive !== undefined) link.isActive = dto.isActive;
-    if (dto.scheduleStartAt !== undefined)
-      link.scheduleStartAt = dto.scheduleStartAt;
-    if (dto.scheduleEndAt !== undefined) link.scheduleEndAt = dto.scheduleEndAt;
+    // Update fields using helper to only update defined fields
+    const updateData = updateOnlyDefinedFields({
+      title: dto.title,
+      description: dto.description,
+      iconUrl: dto.iconUrl,
+      thumbnailUrl: dto.thumbnailUrl,
+      linkType: dto.linkType as LinkType | undefined,
+      category: dto.category,
+      orderIndex: dto.displayOrder,
+      isActive: dto.isActive,
+      scheduleStartAt: dto.scheduleStartAt,
+      scheduleEndAt: dto.scheduleEndAt,
+    });
+    
+    Object.assign(link, updateData);
 
     link.updatedAt = getCurrentTimestampSeconds();
     await this.linkRepository.save(link);
 
     return {
       message: "Link updated successfully",
-      errorCode: "LINK_UPDATED",
+      errorCode: "LNK004",
       data: link,
     };
   }
@@ -142,7 +147,7 @@ export class LinksService {
 
     if (!link) {
       throw new NotFoundException({
-        errorCode: "LINK002",
+        errorCode: "LNK005",
         message: "Link not found or you do not have permission.",
       });
     }
@@ -158,8 +163,8 @@ export class LinksService {
 
     return {
       message: "Link deleted successfully",
-      errorCode: "LINK_DELETED",
-      data: null,
+      errorCode: "LNK006",
+      data: {},
     };
   }
 
@@ -170,7 +175,7 @@ export class LinksService {
 
     if (!link) {
       throw new NotFoundException({
-        errorCode: "LINK002",
+        errorCode: "LNK007",
         message: "Link not found or is not deleted.",
       });
     }
@@ -184,7 +189,7 @@ export class LinksService {
 
     return {
       message: "Link restored successfully",
-      errorCode: "LINK_RESTORED",
+      errorCode: "LNK008",
       data: link,
     };
   }
@@ -200,7 +205,7 @@ export class LinksService {
 
     if (!link) {
       throw new NotFoundException({
-        errorCode: "LINK002",
+        errorCode: "LNK009",
         message: "Link not found or you do not have permission.",
       });
     }
@@ -225,20 +230,23 @@ export class LinksService {
       now <= link.scheduleEndAt;
 
     return {
-      message: "Link details fetched successfully",
-      errorCode: "LINK_DETAILS",
       data: {
         ...link,
-        analyticsSummary: analyticsSummary[0] || { total_clicks: 0, unique_countries: 0 },
+        analyticsSummary: analyticsSummary[0] || {
+          total_clicks: 0,
+          unique_countries: 0,
+        },
         isScheduled,
       },
+      errorCode: "LNK010",
     };
   }
 
   async listLinks(userId: string, dto: LinkQueryDto) {
-    // Transform query params (strings from query) to numbers
-    const page = typeof dto.page === 'string' ? parseInt(dto.page) : (dto.page || 1);
-    const limit = typeof dto.limit === 'string' ? parseInt(dto.limit) : (dto.limit || 10);
+    const page =
+      typeof dto.page === "string" ? parseInt(dto.page) : dto.page || 1;
+    const limit =
+      typeof dto.limit === "string" ? parseInt(dto.limit) : dto.limit || 10;
     const skip = (page - 1) * limit;
 
     const query = this.linkRepository
@@ -287,17 +295,16 @@ export class LinksService {
     const [links, total] = await query.getManyAndCount();
 
     return {
-      message: "Links fetched successfully",
-      errorCode: "LINKS_LIST",
-      total,
       data: links,
+      total,
+      errorCode: "LNK011",
     };
   }
 
   async reorderLinks(userId: string, dto: ReorderLinksDto) {
     if (!dto.links || dto.links.length === 0) {
       throw new BadRequestException({
-        errorCode: "LINKS001",
+        errorCode: "LNK012",
         message: "No links provided for reordering",
       });
     }
@@ -312,13 +319,12 @@ export class LinksService {
 
       return {
         message: "Links reordered successfully",
-        errorCode: "LINKS_REORDERED",
-        data: null,
+        errorCode: "LNK013",
       };
     } catch (error: any) {
       console.error("Reorder error:", error);
       throw new BadRequestException({
-        errorCode: "LINKS_REORDER_ERROR",
+        errorCode: "LNK014",
         message: error?.message || "Failed to reorder links",
       });
     }
@@ -331,7 +337,7 @@ export class LinksService {
 
     if (!link) {
       throw new NotFoundException({
-        errorCode: "LINK002",
+        errorCode: "LNK015",
         message: "Link not found or you do not have permission.",
       });
     }
@@ -342,7 +348,7 @@ export class LinksService {
 
     return {
       message: `Link ${isActive ? "activated" : "deactivated"} successfully`,
-      errorCode: "LINK_STATUS_TOGGLED",
+      errorCode: "LNK016",
       data: link,
     };
   }
@@ -358,7 +364,7 @@ export class LinksService {
 
     if (links.length === 0) {
       throw new NotFoundException({
-        errorCode: "LINK002",
+        errorCode: "LNK017",
         message: "No valid links found for bulk operation.",
       });
     }
@@ -410,7 +416,7 @@ export class LinksService {
 
     return {
       message: `Bulk ${dto.action} completed successfully`,
-      errorCode: "LINK_BULK_OP",
+      errorCode: "LNK018",
       data: { affected: links.length },
     };
   }
@@ -428,10 +434,9 @@ export class LinksService {
         "(link.scheduleStartAt IS NULL OR link.scheduleStartAt <= :now)",
         { now },
       )
-      .andWhere(
-        "(link.scheduleEndAt IS NULL OR link.scheduleEndAt >= :now)",
-        { now },
-      )
+      .andWhere("(link.scheduleEndAt IS NULL OR link.scheduleEndAt >= :now)", {
+        now,
+      })
       .orderBy("link.orderIndex", "ASC")
       .select([
         "link.id",
@@ -449,9 +454,8 @@ export class LinksService {
       .getMany();
 
     return {
-      message: "Public links fetched successfully",
-      errorCode: "PUBLIC_LINKS",
       data: links,
+      errorCode: "LNK019",
     };
   }
 }

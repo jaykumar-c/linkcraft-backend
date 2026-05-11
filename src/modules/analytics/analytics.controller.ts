@@ -25,7 +25,7 @@ export class AnalyticsController {
     const result = await this.analyticsService.trackLinkClick(body);
     return {
       message: '',
-      errorCode: 'ANC001',
+      errorCode: 'ANC006',
       data: result,
       error: '',
     };
@@ -41,7 +41,7 @@ export class AnalyticsController {
     const result = await this.analyticsService.getLinkAnalytics(user.id, query);
     return {
       message: '',
-      errorCode: 'ANC002',
+      errorCode: 'ANC007',
       data: result,
       error: '',
     };
@@ -54,7 +54,7 @@ export class AnalyticsController {
     const result = await this.analyticsService.getOverview(user.id);
     return {
       message: '',
-      errorCode: 'ANC003',
+      errorCode: 'ANC008',
       data: result,
       error: '',
     };

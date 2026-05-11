@@ -1,5 +1,6 @@
-import { Injectable } from '@nestjs/common';
-import { BioBuildOptions, PromptResult } from '../dto/bio-prompt.builder.dto';
+import { Injectable } from "@nestjs/common";
+import { BioBuildOptions, PromptResult } from "../dto/bio-prompt.builder.dto";
+import { AiTone } from "src/common/enums";
 
 interface ToneTemplate {
   getSystemPrompt(): string;
@@ -39,43 +40,45 @@ Avoid: Adjectives, adverbs, unnecessary words.`,
   };
 
   build(options: BioBuildOptions): PromptResult {
-    const tone = options.tone || 'professional';
-    const template = this.toneTemplates[tone] || this.toneTemplates.professional;
+    const tone = options.tone || AiTone.PROFESSIONAL;
+    const template =
+      this.toneTemplates[tone] || this.toneTemplates.professional;
 
     const systemPrompt = template.getSystemPrompt();
 
     const profile = options.profile || {};
-    const name = profile.displayName || 'User';
-    const profession = profile.profession || 'Professional';
+    const name = profile.displayName || "User";
+    const profession = profile.profession || AiTone.PROFESSIONAL;
 
-    const linksSection = (options.includeLinks !== 'false' && options.links?.length)
-      ? `\nLinks:\n${options.links.map((l) => `- ${l.title} (${l.category || 'link'}): ${l.url}`).join('\n')}`
-      : '';
+    const linksSection =
+      options.includeLinks !== "false" && options.links?.length
+        ? `\nLinks:\n${options.links.map((l) => `- ${l.title} (${l.category || "link"}): ${l.url}`).join("\n")}`
+        : "";
 
     const keywordsSection = options.keywords?.length
-      ? `\nKeywords: ${options.keywords.join(', ')}`
-      : '';
+      ? `\nKeywords: ${options.keywords.join(", ")}`
+      : "";
 
     const userPrompt = `
-User Profile:
-- Name: ${name}
-- Profession: ${profession}
-${keywordsSection}
-${linksSection}
+    User Profile:
+    - Name: ${name}
+    - Profession: ${profession}
+    ${keywordsSection}
+    ${linksSection}
 
-Generate a ${options.length || 'medium'} bio that reflects the user's professional identity. Incorporate the keywords naturally if provided.${options.includeLinks !== 'false' && options.links?.length ? ' Reference their links to show their work/projects.' : ''}
-`.trim();
+    Generate a ${options.length || "medium"} bio that reflects the user's professional identity. Incorporate the keywords naturally if provided.${options.includeLinks !== "false" && options.links?.length ? " Reference their links to show their work/projects." : ""}
+    `.trim();
 
     return { system: systemPrompt, user: userPrompt };
   }
 
   getMaxTokensForLength(length: string): number {
     switch (length) {
-      case 'short':
+      case "short":
         return 100;
-      case 'medium':
+      case "medium":
         return 200;
-      case 'long':
+      case "long":
         return 400;
       default:
         return 200;

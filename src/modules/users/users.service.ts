@@ -1,9 +1,11 @@
 import { Injectable, NotFoundException, Logger, BadRequestException } from '@nestjs/common';
-import { DataSource } from 'typeorm';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import * as argon2 from 'argon2';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { User } from './entities/user.entity';
+import { updateOnlyDefinedFields } from 'src/common/helpers/update-defined-field.helper';
 
 /**
  * Service responsible for user profile operations.
@@ -13,7 +15,10 @@ import { User } from './entities/user.entity';
 export class UsersService {
   private readonly logger = new Logger(UsersService.name);
 
-  constructor(private readonly dataSource: DataSource) {}
+  constructor(
+    @InjectRepository(User)
+    private readonly userRepository: Repository<User>,
+  ) {}
 
   /**
    * Retrieves the current user's profile by ID.
@@ -24,32 +29,28 @@ export class UsersService {
    * @throws NotFoundException - If user is not found or is deleted
    */
   async getProfile(userId: string): Promise<Partial<User>> {
+    const user = await this.userRepository.findOne({
+      where: { id: userId, isDeleted: false },
+      select: [
+        'id',
+        'email',
+        'username',
+        'displayName',
+        'avatarUrl',
+        'bioText',
+        'profession',
+        'themeSettings',
+        'plan',
+        'totalProfileViews',
+        'totalAiTokensUsed',
+        'lastLoginAt',
+        'createdAt',
+        'updatedAt',
+        'isActive'
+      ]
+    });
 
-    const query = `
-      SELECT 
-        id,
-        email,
-        username,
-        display_name,
-        avatar_url,
-        bio_text,
-        profession,
-        theme_settings,
-        plan,
-        total_profile_views,
-        total_ai_tokens_used,
-        last_login_at,
-        created_at,
-        updated_at,
-        is_active
-      FROM users
-      WHERE id = $1 
-        AND is_deleted = false
-    `;
-
-    const result = await this.dataSource.query(query, [userId]);
-
-    if (!result || result.length === 0) {
+    if (!user) {
       this.logger.warn(`User not found: ${userId}`);
       throw new NotFoundException({
         errorCode: 'USER001',
@@ -57,7 +58,7 @@ export class UsersService {
       });
     }
 
-    return result[0];
+    return user;
   }
 
   /**
@@ -73,75 +74,12 @@ export class UsersService {
     userId: string,
     updateData: UpdateProfileDto,
   ): Promise<Partial<User>> {
+    // Find the user first
+    const user = await this.userRepository.findOne({
+      where: { id: userId, isDeleted: false },
+    });
 
-    // Build dynamic update query based on provided fields
-    const updateFields: string[] = [];
-    const queryParams: any[] = [];
-    let paramIndex = 1;
-
-    if (updateData.displayName !== undefined) {
-      updateFields.push(`display_name = $${paramIndex++}`);
-      queryParams.push(updateData.displayName);
-    }
-
-    if (updateData.username !== undefined) {
-      updateFields.push(`username = $${paramIndex++}`);
-      queryParams.push(updateData.username);
-    }
-
-    if (updateData.bioText !== undefined) {
-      updateFields.push(`bio_text = $${paramIndex++}`);
-      queryParams.push(updateData.bioText);
-    }
-
-    // Also check for 'bio' field and map to bio_text
-    if ((updateData as any).bio !== undefined) {
-      updateFields.push(`bio_text = $${paramIndex++}`);
-      queryParams.push((updateData as any).bio);
-    }
-
-    if (updateData.profession !== undefined) {
-      updateFields.push(`profession = $${paramIndex++}`);
-      queryParams.push(updateData.profession);
-    }
-
-    if (updateData.avatar_url !== undefined) {
-      updateFields.push(`avatar_url = $${paramIndex++}`);
-      queryParams.push(updateData.avatar_url);
-    }
-
-    // Always update the updated_at timestamp
-    updateFields.push(`updated_at = $${paramIndex++}`);
-    queryParams.push(Math.floor(Date.now() / 1000));
-
-    // Add user ID as the last parameter
-    queryParams.push(userId);
-
-    const updateQuery = `
-      UPDATE users
-      SET ${updateFields.join(', ')}
-      WHERE id = $${paramIndex}
-        AND is_deleted = false
-      RETURNING 
-        id,
-        email,
-        username,
-        display_name,
-        avatar_url,
-        bio_text,
-        profession,
-        theme_settings,
-        plan,
-        total_profile_views,
-        last_login_at,
-        created_at,
-        updated_at,
-        is_active
-    `;
-
-    const result = await this.dataSource.query(updateQuery, queryParams);
-
-    if (!result || result.length === 0) {
+    if (!user) {
       this.logger.warn(`User not found for update: ${userId}`);
       throw new NotFoundException({
         errorCode: 'USER001',
@@ -149,19 +87,63 @@ export class UsersService {
       });
     }
 
-    return result[0];
+    // Define the fields we want to check for updates (matching DTO and entity field names)
+    const fieldsToCheck = {
+      displayName: updateData.displayName,
+      username: updateData.username,
+      bioText: updateData.bioText,
+      bio: (updateData as any).bio, // Handle both bioText and bio fields from DTO
+      profession: updateData.profession,
+      avatarUrl: updateData.avatar_url, // Note: DTO uses avatar_url, entity uses avatarUrl
+    };
+
+    // Use helper to get only defined fields
+    const definedFields = updateOnlyDefinedFields(fieldsToCheck);
+
+    // Handle bio field mapping (both bioText and bio from DTO map to bioText in entity)
+    if (definedFields.bio !== undefined && definedFields.bioText === undefined) {
+      definedFields.bioText = definedFields.bio;
+    }
+
+    // Update only the defined fields
+    Object.assign(user, {
+      displayName: definedFields.displayName ?? user.displayName,
+      username: definedFields.username ?? user.username,
+      bioText: definedFields.bioText ?? user.bioText,
+      profession: definedFields.profession ?? user.profession,
+      avatarUrl: definedFields.avatarUrl ?? user.avatarUrl,
+    });
+
+    // Always update the updatedAt timestamp
+    user.updatedAt = Math.floor(Date.now() / 1000);
+
+    // Save the updated user
+    const updatedUser = await this.userRepository.save(user);
+
+    // Return the user without sensitive fields
+    const {
+      passwordHash,
+      googleId,
+      githubId,
+      passwordResetToken,
+      passwordResetExpiresAt,
+      ...userWithoutSensitiveData
+    } = updatedUser;
+
+    return userWithoutSensitiveData;
   }
 
   async incrementTokenUsage(userId: string, tokensUsed: number): Promise<void> {
-    const query = `
-      UPDATE users
-      SET total_ai_tokens_used = total_ai_tokens_used + $1,
-          updated_at = $2
-      WHERE id = $3
-        AND is_deleted = false
-    `;
-
-    await this.dataSource.query(query, [tokensUsed, Math.floor(Date.now() / 1000), userId]);
+    await this.userRepository
+      .createQueryBuilder()
+      .update(User)
+      .set({ 
+        totalAiTokensUsed: () => `total_ai_tokens_used + ${tokensUsed}`,
+        updatedAt: Math.floor(Date.now() / 1000)
+      })
+      .where("id = :userId", { userId })
+      .andWhere("isDeleted = false")
+      .execute();
   }
 
   async changePassword(userId: string, changePasswordDto: ChangePasswordDto): Promise<void> {
@@ -172,23 +154,19 @@ export class UsersService {
       });
     }
 
-    const query = `
-      SELECT id, password_hash, is_active, is_deleted
-      FROM users
-      WHERE id = $1 AND is_deleted = false
-    `;
+    const user = await this.userRepository.findOne({
+      where: { id: userId, isDeleted: false },
+      select: ['id', 'passwordHash', 'isActive', 'isDeleted']
+    });
 
-    const result = await this.dataSource.query(query, [userId]);
-    if (!result || result.length === 0) {
+    if (!user) {
       throw new NotFoundException({
         errorCode: 'UCP005',
         message: 'User not found',
       });
     }
 
-    const user = result[0];
-
-    if (!user.is_active) {
+    if (!user.isActive) {
       throw new BadRequestException({
         errorCode: 'UCP006',
         message: 'Account is disabled',
@@ -223,7 +201,15 @@ export class UsersService {
       });
     }
 
-    const isValid = await argon2.verify(user.password_hash, changePasswordDto.currentPassword);
+    // If passwordHash is null, it's an OAuth-only account and cannot use password authentication
+    if (!user.passwordHash) {
+      throw new BadRequestException({
+        errorCode: 'UCP008',
+        message: 'Current password is incorrect',
+      });
+    }
+
+    const isValid = await argon2.verify(user.passwordHash, changePasswordDto.currentPassword);
     if (!isValid) {
       throw new BadRequestException({
         errorCode: 'UCP008',
@@ -232,13 +218,16 @@ export class UsersService {
     }
 
     const newPasswordHash = await argon2.hash(changePasswordDto.newPassword);
-    const updateQuery = `
-      UPDATE users
-      SET password_hash = $1, updated_at = $2
-      WHERE id = $3 AND is_deleted = false
-    `;
-
-    await this.dataSource.query(updateQuery, [newPasswordHash, Math.floor(Date.now() / 1000), userId]);
+    await this.userRepository
+      .createQueryBuilder()
+      .update(User)
+      .set({ 
+        passwordHash: newPasswordHash,
+        updatedAt: Math.floor(Date.now() / 1000)
+      })
+      .where("id = :userId", { userId })
+      .andWhere("isDeleted = false")
+      .execute();
   }
 
 }

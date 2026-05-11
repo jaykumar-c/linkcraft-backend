@@ -213,7 +213,7 @@ export class AiService {
 
     if (!generation || !generation.response) {
       throw new NotFoundException({
-        errorCode: "AI003",
+        errorCode: "AIC001",
         message: "Generation not found or has no response.",
       });
     }

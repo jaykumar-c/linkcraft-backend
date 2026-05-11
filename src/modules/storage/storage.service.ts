@@ -26,14 +26,14 @@ export class StorageService {
   async uploadSingle(file: Express.Multer.File, dto: UploadSingleDto): Promise<FileMetadata> {
     if (!file) {
       throw new BadRequestException({
-        errorCode: "STORAGE001",
+        errorCode: "STG001",
         message: "No file provided",
       });
     }
 
     if (file.size > STORAGE_MAX_FILE_SIZE) {
       throw new BadRequestException({
-        errorCode: "STORAGE001",
+        errorCode: "STG002",
         message: `File size exceeds the maximum allowed size of ${STORAGE_MAX_FILE_SIZE / (1024 * 1024)}MB`,
       });
     }
@@ -64,7 +64,7 @@ export class StorageService {
     } catch (error) {
       this.logger.error(`Upload failed: ${error}`);
       throw new BadRequestException({
-        errorCode: "STORAGE003",
+        errorCode: "STG003",
         message: StorageErrorMessage.UPLOAD_FAILED,
       });
     }
@@ -73,7 +73,7 @@ export class StorageService {
   async uploadBulk(files: Express.Multer.File[], dto: UploadSingleDto): Promise<BulkUploadResponse> {
     if (!files || files.length === 0) {
       throw new BadRequestException({
-        errorCode: "STORAGE001",
+        errorCode: "STG004",
         message: "No files provided",
       });
     }
@@ -81,7 +81,7 @@ export class StorageService {
     for (const file of files) {
       if (file.size > STORAGE_MAX_FILE_SIZE) {
         throw new BadRequestException({
-          errorCode: "STORAGE001",
+          errorCode: "STG005",
           message: `File ${file.originalname} exceeds the maximum allowed size of ${STORAGE_MAX_FILE_SIZE / (1024 * 1024)}MB`,
         });
       }
@@ -89,7 +89,7 @@ export class StorageService {
 
     if (files.length > STORAGE_MAX_BULK_FILES) {
       throw new BadRequestException({
-        errorCode: "STORAGE008",
+        errorCode: "STG006",
         message: `Maximum ${STORAGE_MAX_BULK_FILES} files allowed`,
       });
     }
@@ -140,7 +140,7 @@ export class StorageService {
 
     if (failed.length > 0 && uploaded.length === 0) {
       throw new BadRequestException({
-        errorCode: "STORAGE007",
+        errorCode: "STG007",
         message: StorageErrorMessage.BULK_UPLOAD_ALL_FAILED,
       });
     }
@@ -155,7 +155,7 @@ export class StorageService {
   async deleteFile(dto: DeleteFileDto): Promise<{ success: boolean }> {
     if (!dto.publicId) {
       throw new BadRequestException({
-        errorCode: "STORAGE001",
+        errorCode: "STG008",
         message: "publicId is required",
       });
     }
@@ -165,7 +165,7 @@ export class StorageService {
       return { success: true };
     } catch (error) {
       throw new BadRequestException({
-        errorCode: "STORAGE004",
+        errorCode: "STG009",
         message: StorageErrorMessage.DELETE_FAILED,
       });
     }
@@ -174,7 +174,7 @@ export class StorageService {
   async generateDownloadUrl(publicId: string, expiresIn?: string): Promise<string> {
     if (!publicId) {
       throw new BadRequestException({
-        errorCode: "STORAGE001",
+        errorCode: "STG010",
         message: "publicId is required",
       });
     }
@@ -198,7 +198,7 @@ export class StorageService {
       return signedUrl;
     } catch (error) {
       throw new BadRequestException({
-        errorCode: "STORAGE010",
+        errorCode: "STG011",
         message: StorageErrorMessage.GENERATE_URL_FAILED,
       });
     }
