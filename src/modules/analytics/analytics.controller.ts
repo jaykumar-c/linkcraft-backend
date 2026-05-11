@@ -8,7 +8,7 @@ import {
   HttpCode,
   HttpStatus,
 } from "@nestjs/common";
-import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
+import { JwtAuthGuard } from "../../common/guards/jwt-auth.guard";
 import { CurrentUser } from "../auth/decorators/current-user.decorator";
 import { User } from "../users/entities/user.entity";
 import { AnalyticsService } from "./analytics.service";
@@ -19,11 +19,16 @@ import { LinkAnalyticsQueryDto } from "./dto/link-analytics-query.dto";
 export class AnalyticsController {
   constructor(private readonly analyticsService: AnalyticsService) {}
 
-  // Public endpoint for tracking link clicks
   @Post("track")
   @HttpCode(HttpStatus.OK)
   async trackClick(@Body() body: CreateAnalyticsDto) {
-    return this.analyticsService.trackLinkClick(body);
+    const result = await this.analyticsService.trackLinkClick(body);
+    return {
+      message: '',
+      errorCode: 'ANC001',
+      data: result,
+      error: '',
+    };
   }
 
   @UseGuards(JwtAuthGuard)
@@ -33,13 +38,25 @@ export class AnalyticsController {
     @CurrentUser() user: User,
     @Query() query: LinkAnalyticsQueryDto,
   ) {
-    return this.analyticsService.getLinkAnalytics(user.id, query);
+    const result = await this.analyticsService.getLinkAnalytics(user.id, query);
+    return {
+      message: '',
+      errorCode: 'ANC002',
+      data: result,
+      error: '',
+    };
   }
 
   @UseGuards(JwtAuthGuard)
   @Get("overview")
   @HttpCode(HttpStatus.OK)
   async getAnalyticsOverview(@CurrentUser() user: User) {
-    return this.analyticsService.getOverview(user.id);
+    const result = await this.analyticsService.getOverview(user.id);
+    return {
+      message: '',
+      errorCode: 'ANC003',
+      data: result,
+      error: '',
+    };
   }
 }

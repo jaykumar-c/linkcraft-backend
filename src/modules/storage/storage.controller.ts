@@ -9,11 +9,11 @@ import {
   UseInterceptors,
   HttpCode,
   HttpStatus,
-  UploadedFiles,
   UploadedFile,
+  UploadedFiles,
 } from "@nestjs/common";
 import { FileFieldsInterceptor, FileInterceptor } from "@nestjs/platform-express";
-import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
+import { JwtAuthGuard } from "../../common/guards/jwt-auth.guard";
 import { CurrentUser } from "../auth/decorators/current-user.decorator";
 import { User } from "../users/entities/user.entity";
 import { StorageService } from "./storage.service";
@@ -36,9 +36,10 @@ export class StorageController {
   ) {
     const result = await this.storageService.uploadSingle(file, body);
     return {
-      message: "FILE_UPLOADED_SUCCESSFULLY",
-      errorCode: "STORAGE100",
+      message: 'File uploaded successfully',
+      errorCode: 'STC001',
       data: result,
+      error: '',
     };
   }
 
@@ -53,9 +54,10 @@ export class StorageController {
   ) {
     const result = await this.storageService.uploadBulk(files, body);
     return {
-      message: result.failed.length > 0 ? "SOME_FILES_UPLOADED" : "FILES_UPLOADED_SUCCESSFULLY",
-      errorCode: result.failed.length > 0 ? "STORAGE101" : "STORAGE100",
+      message: result.failed.length > 0 ? 'Some files uploaded' : 'Files uploaded successfully',
+      errorCode: result.failed.length > 0 ? 'STC002' : 'STC001',
       data: result,
+      error: '',
     };
   }
 
@@ -68,9 +70,10 @@ export class StorageController {
   ) {
     const result = await this.storageService.deleteFile(body);
     return {
-      message: "FILE_DELETED_SUCCESSFULLY",
-      errorCode: "STORAGE200",
+      message: 'File deleted successfully',
+      errorCode: 'STC003',
       data: result,
+      error: '',
     };
   }
 
@@ -81,20 +84,20 @@ export class StorageController {
     @CurrentUser() user: User,
     @Query() query: DownloadFileDto,
   ) {
-    const { publicId, expiresIn } = query;
-    if (!publicId) {
+    if (!query.publicId) {
       return {
-        message: "publicId is required",
-        errorCode: "STORAGE300",
-        data: null,
+        message: '',
+        errorCode: 'VAL001',
+        data: {},
+        error: 'publicId is required',
       };
     }
-
-    const url = await this.storageService.generateDownloadUrl(publicId, expiresIn);
+    const url = await this.storageService.generateDownloadUrl(query.publicId, query.expiresIn);
     return {
-      message: "URL_GENERATED_SUCCESSFULLY",
-      errorCode: "STORAGE300",
+      message: '',
+      errorCode: 'STC004',
       data: { url },
+      error: '',
     };
   }
 }

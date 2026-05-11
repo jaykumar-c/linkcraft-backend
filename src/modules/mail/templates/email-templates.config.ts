@@ -20,6 +20,6 @@ export const EMAIL_TEMPLATES: Record<string, EmailTemplateConfig> = {
   [MAIL_EVENTS.PASSWORD_RESET]: {
     templateFile: 'password-reset.html',
     subject: 'Reset Your Password 🔐',
-    requiredFields: ['name', 'otp'],
+    requiredFields: ['name', 'resetLink'],
   },
 };

@@ -12,7 +12,7 @@ export class JwtRefreshGuard implements CanActivate {
     const token = this.extractTokenFromHeader(request);
     if (!token) {
       throw new UnauthorizedException({
-        errorCode: 'AUTH014',
+        errorCode: 'ERR401',
         message: 'Refresh token is missing.',
       });
     }

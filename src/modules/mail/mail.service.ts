@@ -8,16 +8,14 @@ import { MailEvent } from './constants/mail-events.constants';
 @Injectable()
 export class MailService {
   private readonly logger = new Logger(MailService.name);
+  private readonly templateBasePath: string;
 
-  constructor(private readonly mailerService: MailerService) {}
+  constructor(private readonly mailerService: MailerService) {
+    this.templateBasePath = process.env.NODE_ENV === 'production'
+      ? join(process.cwd(), 'dist', 'src', 'modules', 'mail', 'templates')
+      : join(process.cwd(), 'src', 'modules', 'mail', 'templates');
+  }
 
-  /**
-   * Global sendEmail function with event-based template system
-   * @param event - The email event name from MAIL_EVENTS constants
-   * @param to - Recipient email address(es)
-   * @param replacements - Object containing template variable replacements
-   * @param options - Additional options (optional subject override, etc.)
-   */
   async sendEmail(
     event: MailEvent,
     to: string | string[],
@@ -27,15 +25,11 @@ export class MailService {
     }
   ): Promise<void> {
     try {
-      // Get template configuration
       const templateConfig = EMAIL_TEMPLATES[event];
       if (!templateConfig) {
         throw new Error(`Email template not found for event: ${event}`);
       }
 
-      // console.log(templateConfig);
-
-      // Validate required fields
       const missingFields = templateConfig.requiredFields.filter(
         field => !(field in replacements)
       );
@@ -43,14 +37,11 @@ export class MailService {
         throw new Error(`Missing required template fields: ${missingFields.join(', ')}`);
       }
 
-      // Load template file
-      const templatePath = join(__dirname, 'templates', templateConfig.templateFile);
+      const templatePath = join(this.templateBasePath, templateConfig.templateFile);
       const templateContent = await readFile(templatePath, 'utf-8');
 
-      // Process template with replacements
       const processedHtml = this.processTemplate(templateContent, replacements);
 
-      // Send email
       await this.mailerService.sendMail({
         to,
         subject: options?.subject || templateConfig.subject,
@@ -70,7 +61,6 @@ export class MailService {
   private processTemplate(template: string, data: Record<string, any>): string {
     let processedTemplate = template;
     
-    // Simple template engine: replace {{key}} with values from data
     Object.entries(data).forEach(([key, value]) => {
       const placeholder = `{{${key}}}`;
       const replacement = value !== null && value !== undefined ? String(value) : '';

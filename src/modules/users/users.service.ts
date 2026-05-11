@@ -1,6 +1,8 @@
-import { Injectable, NotFoundException, Logger } from '@nestjs/common';
+import { Injectable, NotFoundException, Logger, BadRequestException } from '@nestjs/common';
 import { DataSource } from 'typeorm';
+import * as argon2 from 'argon2';
 import { UpdateProfileDto } from './dto/update-profile.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
 import { User } from './entities/user.entity';
 
 /**
@@ -160,6 +162,83 @@ export class UsersService {
     `;
 
     await this.dataSource.query(query, [tokensUsed, Math.floor(Date.now() / 1000), userId]);
+  }
+
+  async changePassword(userId: string, changePasswordDto: ChangePasswordDto): Promise<void> {
+    if (!userId) {
+      throw new NotFoundException({
+        errorCode: 'UCP005',
+        message: 'User not found',
+      });
+    }
+
+    const query = `
+      SELECT id, password_hash, is_active, is_deleted
+      FROM users
+      WHERE id = $1 AND is_deleted = false
+    `;
+
+    const result = await this.dataSource.query(query, [userId]);
+    if (!result || result.length === 0) {
+      throw new NotFoundException({
+        errorCode: 'UCP005',
+        message: 'User not found',
+      });
+    }
+
+    const user = result[0];
+
+    if (!user.is_active) {
+      throw new BadRequestException({
+        errorCode: 'UCP006',
+        message: 'Account is disabled',
+      });
+    }
+
+    if (!changePasswordDto.currentPassword) {
+      throw new BadRequestException({
+        errorCode: 'VAL001',
+        message: 'Current password is required',
+      });
+    }
+
+    if (!changePasswordDto.newPassword) {
+      throw new BadRequestException({
+        errorCode: 'VAL001',
+        message: 'New password is required',
+      });
+    }
+
+    if (changePasswordDto.newPassword.length < 8) {
+      throw new BadRequestException({
+        errorCode: 'VAL001',
+        message: 'Password must be at least 8 characters',
+      });
+    }
+
+    if (changePasswordDto.currentPassword === changePasswordDto.newPassword) {
+      throw new BadRequestException({
+        errorCode: 'UCP007',
+        message: 'New password cannot be the same as current password',
+      });
+    }
+
+    const isValid = await argon2.verify(user.password_hash, changePasswordDto.currentPassword);
+    if (!isValid) {
+      throw new BadRequestException({
+        errorCode: 'UCP008',
+        message: 'Current password is incorrect',
+      });
+    }
+
+    const newPasswordHash = await argon2.hash(changePasswordDto.newPassword);
+    const updateQuery = `
+      UPDATE users
+      SET password_hash = $1, updated_at = $2
+      WHERE id = $3 AND is_deleted = false
+    `;
+
+    await this.dataSource.query(updateQuery, [newPasswordHash, Math.floor(Date.now() / 1000), userId]);
   }
 
 }

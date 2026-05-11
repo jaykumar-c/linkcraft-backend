@@ -9,9 +9,8 @@ import {
   UseGuards,
   HttpCode,
   HttpStatus,
-  Request,
 } from "@nestjs/common";
-import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
+import { JwtAuthGuard } from "../../common/guards/jwt-auth.guard";
 import { CurrentUser } from "../auth/decorators/current-user.decorator";
 import { User } from "../users/entities/user.entity";
 import { LinksService } from "./links.service";
@@ -33,7 +32,13 @@ export class LinksController {
     @CurrentUser() user: User,
     @Body() body: CreateLinkDto,
   ) {
-    return this.linksService.createLink(user.id, body);
+    const result = await this.linksService.createLink(user.id, body);
+    return {
+      message: 'Link created successfully',
+      errorCode: 'LNC001',
+      data: result,
+      error: '',
+    };
   }
 
   @UseGuards(JwtAuthGuard)
@@ -44,7 +49,13 @@ export class LinksController {
     @Body() body: UpdateLinkDto & { linkId: string },
   ) {
     const { linkId, ...updateData } = body;
-    return this.linksService.updateLink(user.id, linkId, updateData);
+    const result = await this.linksService.updateLink(user.id, linkId, updateData);
+    return {
+      message: 'Link updated successfully',
+      errorCode: 'LNC002',
+      data: result,
+      error: '',
+    };
   }
 
   @UseGuards(JwtAuthGuard)
@@ -54,7 +65,13 @@ export class LinksController {
     @CurrentUser() user: User,
     @Body() body: { linkId: string },
   ) {
-    return this.linksService.deleteLink(user.id, body.linkId);
+    await this.linksService.deleteLink(user.id, body.linkId);
+    return {
+      message: 'Link deleted successfully',
+      errorCode: 'LNC003',
+      data: {},
+      error: '',
+    };
   }
 
   @UseGuards(JwtAuthGuard)
@@ -64,7 +81,13 @@ export class LinksController {
     @CurrentUser() user: User,
     @Body() body: { linkId: string },
   ) {
-    return this.linksService.restoreLink(user.id, body.linkId);
+    const result = await this.linksService.restoreLink(user.id, body.linkId);
+    return {
+      message: 'Link restored successfully',
+      errorCode: 'LNC004',
+      data: result,
+      error: '',
+    };
   }
 
   @UseGuards(JwtAuthGuard)
@@ -74,7 +97,13 @@ export class LinksController {
     @CurrentUser() user: User,
     @Query() query: LinkDetailsQueryDto,
   ) {
-    return this.linksService.getLinkDetails(user.id, query);
+    const result = await this.linksService.getLinkDetails(user.id, query);
+    return {
+      message: '',
+      errorCode: 'LNC005',
+      data: result,
+      error: '',
+    };
   }
 
   @UseGuards(JwtAuthGuard)
@@ -84,7 +113,13 @@ export class LinksController {
     @CurrentUser() user: User,
     @Query() query: LinkQueryDto,
   ) {
-    return this.linksService.listLinks(user.id, query);
+    const result = await this.linksService.listLinks(user.id, query);
+    return {
+      message: '',
+      errorCode: 'LNC006',
+      data: result,
+      error: '',
+    };
   }
 
   @UseGuards(JwtAuthGuard)
@@ -94,7 +129,13 @@ export class LinksController {
     @CurrentUser() user: User,
     @Body() body: ReorderLinksDto,
   ) {
-    return this.linksService.reorderLinks(user.id, body);
+    await this.linksService.reorderLinks(user.id, body);
+    return {
+      message: 'Links reordered successfully',
+      errorCode: 'LNC007',
+      data: {},
+      error: '',
+    };
   }
 
   @UseGuards(JwtAuthGuard)
@@ -104,11 +145,17 @@ export class LinksController {
     @CurrentUser() user: User,
     @Body() body: { linkId: string; isActive: boolean },
   ) {
-    return this.linksService.toggleLinkStatus(
+    const result = await this.linksService.toggleLinkStatus(
       user.id,
       body.linkId,
       body.isActive,
     );
+    return {
+      message: 'Link status toggled successfully',
+      errorCode: 'LNC008',
+      data: result,
+      error: '',
+    };
   }
 
   @UseGuards(JwtAuthGuard)
@@ -118,7 +165,13 @@ export class LinksController {
     @CurrentUser() user: User,
     @Body() body: BulkOperationDto,
   ) {
-    return this.linksService.bulkOperation(user.id, body);
+    const result = await this.linksService.bulkOperation(user.id, body);
+    return {
+      message: 'Bulk operation completed successfully',
+      errorCode: 'LNC009',
+      data: result,
+      error: '',
+    };
   }
 
   // ─── Public APIs ────────────────────────────────────────────────────────────
@@ -128,11 +181,18 @@ export class LinksController {
   async getPublicLinks(@Query("username") username: string) {
     if (!username) {
       return {
-        message: "Username is required",
-        errorCode: "LINK_PUBLIC_001",
-        data: null,
+        message: '',
+        errorCode: 'LNC010',
+        data: {},
+        error: 'Username is required',
       };
     }
-    return this.linksService.getPublicLinks(username);
+    const result = await this.linksService.getPublicLinks(username);
+    return {
+      message: '',
+      errorCode: 'LNC011',
+      data: result,
+      error: '',
+    };
   }
 }

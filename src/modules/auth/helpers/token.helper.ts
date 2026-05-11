@@ -14,7 +14,28 @@ export const generateTokens = async (
   deviceInfo?: string,
   ipAddress?: string,
 ) => {
-  const payload = { sub: user.id, email: user.email, plan: user.plan, username: user.username };
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const payload: any = { 
+    sub: user.id, 
+    email: user.email, 
+    plan: user.plan, 
+    username: user.username,
+  };
+  
+  // Save device first to get ID
+  const deviceRecord = deviceRepository.create({
+    userId: user.id,
+    accessToken: '', // temporary
+    refreshToken: '', // temporary
+    expiresAt: 0, // temporary
+    deviceInfo,
+    lastUsedAt: getCurrentTimestampSeconds(),
+  });
+  await deviceRepository.save(deviceRecord);
+  
+  // Now include deviceId in JWT
+  payload.deviceId = deviceRecord.id;
+  
   const accessToken = jwtService.sign(payload, {
     secret: configService.get<string>('JWT_SECRET') || 'defaultSecretKey',
     expiresIn: configService.get<string>('JWT_ACCESS_EXPIRATION') || '1d',
@@ -27,15 +48,10 @@ export const generateTokens = async (
   const days = parseInt(expiryString.replace('d', '')) || 7;
   const expiresAt = getCurrentTimestampSeconds() + days * 24 * 60 * 60;
 
-  const deviceRecord = deviceRepository.create({
-    userId: user.id,
-    accessToken,
-    refreshToken,
-    expiresAt,
-    deviceInfo,
-    lastUsedAt: getCurrentTimestampSeconds(),
-  });
-
+  // Update device with tokens
+  deviceRecord.accessToken = accessToken;
+  deviceRecord.refreshToken = refreshToken;
+  deviceRecord.expiresAt = expiresAt;
   await deviceRepository.save(deviceRecord);
 
   return {

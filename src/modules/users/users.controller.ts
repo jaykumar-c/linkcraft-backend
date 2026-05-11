@@ -2,15 +2,17 @@ import {
   Controller,
   Get,
   Patch,
+  Post,
   Body,
   UseGuards,
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
-import { JwtAuthGuard } from '../../modules/auth/guards/jwt-auth.guard';
+import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../modules/auth/decorators/current-user.decorator';
 import { UsersService } from './users.service';
 import { UpdateProfileDto } from './dto/update-profile.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
 import { User } from './entities/user.entity';
 
 /**
@@ -34,8 +36,9 @@ export class UsersController {
     const result = await this.usersService.getProfile(user.id);
     return {
       message: 'Profile fetched successfully',
-      errorCode: 'USER001',
+      errorCode: 'UCP001',
       data: result,
+      error: '',
     };
   }
 
@@ -56,8 +59,25 @@ export class UsersController {
     await this.usersService.updateProfile(user.id, updateProfileDto);
     return {
       message: 'Profile updated successfully',
-      errorCode: 'USER002',
-      data: null,
+      errorCode: 'UCP002',
+      data: {},
+      error: '',
+    };
+  }
+
+  @Post('change-password')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(JwtAuthGuard)
+  async changePassword(
+    @CurrentUser() user: User,
+    @Body() changePasswordDto: ChangePasswordDto,
+  ) {
+    await this.usersService.changePassword(user.id, changePasswordDto);
+    return {
+      message: 'Password changed successfully',
+      errorCode: 'UCP004',
+      data: {},
+      error: '',
     };
   }
 }

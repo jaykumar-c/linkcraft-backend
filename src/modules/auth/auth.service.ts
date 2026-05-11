@@ -13,10 +13,14 @@ import * as crypto from "crypto";
 import { User } from "../users/entities/user.entity";
 import { Device } from "./entities/device.entity";
 import { getCurrentTimestampSeconds } from "../../common/helpers/date.helper";
+import { REGEX, VALIDATION_MESSAGES } from "../../common/helpers/regex.helper";
 import { MailService } from "../mail/mail.service";
 import { MAIL_EVENTS } from "../mail/constants/mail-events.constants";
 import { generateTokens } from "./helpers/token.helper";
 import { RegisterDto } from "./dto/register.dto";
+
+const PASSWORD_MIN_LENGTH = 8;
+const RESET_TOKEN_EXPIRY_HOURS = 1;
 
 @Injectable()
 export class AuthService {
@@ -31,24 +35,22 @@ export class AuthService {
   async register(registerDto: RegisterDto) {
     const { email, password, username, displayName } = registerDto;
 
-    // Check duplicate email
     const existingEmail = await this.userRepository.findOne({
       where: { email, isDeleted: false },
     });
     if (existingEmail) {
       throw new BadRequestException({
-        errorCode: "AUTH001",
+        errorCode: "ACR009",
         message: "Email is already registered.",
       });
     }
 
-    // Check duplicate username
     const existingUsername = await this.userRepository.findOne({
       where: { username },
     });
     if (existingUsername) {
       throw new BadRequestException({
-        errorCode: "AUTH002",
+        errorCode: "ACR010",
         message: "Username is already taken.",
       });
     }
@@ -62,7 +64,6 @@ export class AuthService {
       passwordHash,
     });
 
-    // Welcome email is best-effort; registration must not fail if mail fails.
     this.mailService
       .sendEmail(MAIL_EVENTS.WELCOME, email, { name: displayName || username })
       .catch((error) => console.error("Failed to send welcome email:", error));
@@ -106,7 +107,7 @@ export class AuthService {
     const user = (rows?.[0] ?? null) as User | null;
     if (!user?.passwordHash) {
       throw new UnauthorizedException({
-        errorCode: "AUTH003",
+        errorCode: "ACR011",
         message: "Invalid email or password.",
       });
     }
@@ -114,7 +115,7 @@ export class AuthService {
     const isValid = await argon2.verify(user.passwordHash, password);
     if (!isValid) {
       throw new UnauthorizedException({
-        errorCode: "AUTH003",
+        errorCode: "ACR011",
         message: "Invalid email or password.",
       });
     }
@@ -125,7 +126,7 @@ export class AuthService {
   async login(user: User, req: any) {
     if (user.isDeleted || !user.isActive) {
       throw new UnauthorizedException({
-        errorCode: "AUTH005",
+        errorCode: "ACR012",
         message: "Account is disabled or deleted.",
       });
     }
@@ -161,7 +162,7 @@ export class AuthService {
       existingToken.expiresAt < getCurrentTimestampSeconds()
     ) {
       throw new UnauthorizedException({
-        errorCode: "AUTH014",
+        errorCode: "ACR013",
         message: "Refresh token is invalid or expired.",
       });
     }
@@ -171,15 +172,13 @@ export class AuthService {
     });
     if (!user || user.isDeleted || !user.isActive) {
       throw new UnauthorizedException({
-        errorCode: "AUTH005",
+        errorCode: "ACR012",
         message: "Account is disabled or deleted.",
       });
     }
 
-    // Delete old token
     await this.deviceRepository.delete(existingToken.id);
 
-    // Issue new ones
     return generateTokens(
       user,
       this.jwtService,
@@ -198,60 +197,210 @@ export class AuthService {
       await this.deviceRepository.remove(existingToken);
     }
 
-    return { message: "Logout Successfully", errorCode: "AUTH006" };
+    return { message: "Logout Successfully", errorCode: "ACR004" };
   }
 
-  async logoutAll(userId: string) {
-    await this.deviceRepository.delete({ userId });
+  async logoutAll(userId: string, currentDeviceId?: string) {
+    if (currentDeviceId) {
+      await this.deviceRepository
+        .createQueryBuilder()
+        .delete()
+        .from("devices")
+        .where("user_id = :userId", { userId })
+        .andWhere("id != :currentDeviceId", { currentDeviceId })
+        .execute();
+    } else {
+      await this.deviceRepository
+        .createQueryBuilder()
+        .delete()
+        .from("devices")
+        .where("user_id = :userId", { userId })
+        .execute();
+    }
+  }
+
+  async getSessions(userId: string) {
+    const devices = await this.deviceRepository.find({
+      where: { userId, isDeleted: false },
+      order: { lastUsedAt: "DESC" },
+      select: ["id", "deviceInfo", "lastUsedAt", "createdAt"],
+    });
+
+    return devices.map((device) => ({
+      id: device.id,
+      deviceInfo: device.deviceInfo || "Unknown device",
+      lastUsedAt: device.lastUsedAt,
+      createdAt: device.createdAt,
+    }));
+  }
+
+  async checkUsernameAvailability(username: string): Promise<{ available: boolean; message: string }> {
+    if (!username || typeof username !== 'string' || username.trim().length < 3) {
+      return {
+        available: false,
+        message: VALIDATION_MESSAGES.USERNAME.MIN_LENGTH,
+      };
+    }
+
+    if (!REGEX.USERNAME.test(username)) {
+      return {
+        available: false,
+        message: VALIDATION_MESSAGES.USERNAME.INVALID_FORMAT,
+      };
+    }
+
+    const existingUser = await this.userRepository.findOne({
+      where: { username: username.toLowerCase() },
+      select: ['id'],
+    });
+
+    if (existingUser) {
+      return {
+        available: false,
+        message: 'Username is already taken',
+      };
+    }
+
+    return {
+      available: true,
+      message: 'Username is available',
+    };
   }
 
   async forgotPassword(email: string) {
-    const user = await this.userRepository.findOne({ where: { email } });
-    if (user) {
-      const token = crypto.randomBytes(32).toString("hex");
-      const hashedToken = crypto
-        .createHash("sha256")
-        .update(token)
-        .digest("hex");
-
-      user.passwordResetToken = hashedToken;
-      user.passwordResetExpiresAt = getCurrentTimestampSeconds() + 60 * 60; // 1 hour
-      await this.userRepository.save(user);
-
-      this.mailService
-        .sendEmail(MAIL_EVENTS.PASSWORD_RESET, email, {
-          name: user?.displayName || user?.username || "User",
-          otp: token,
-        })
-        .catch((error) => {
-          console.error("Failed to send password reset email:", error);
-        }); // Fire and forget
-    }
-  }
-
-  async resetPassword(token: string, newPassword: string) {
-    const hashedToken = crypto.createHash("sha256").update(token).digest("hex");
-    const user = await this.userRepository.findOne({
-      where: { passwordResetToken: hashedToken },
-    });
-
-    if (
-      !user ||
-      !user.passwordResetExpiresAt ||
-      user.passwordResetExpiresAt < getCurrentTimestampSeconds()
-    ) {
+    if (!email || typeof email !== "string") {
       throw new BadRequestException({
-        errorCode: "AUTH013",
-        message: "Token is invalid or expired.",
+        errorCode: "VAL001",
+        message: "Email is required",
       });
     }
 
-    user.passwordHash = await argon2.hash(newPassword);
-    user.passwordResetToken = null;
-    user.passwordResetExpiresAt = null;
-    await this.userRepository.save(user);
+    const normalizedEmail = email.trim().toLowerCase();
+    const user = await this.userRepository.findOne({
+      where: { email: normalizedEmail, isDeleted: false },
+    });
 
-    // Invalidate all refresh tokens
-    await this.logoutAll(user.id);
+    if (!user) {
+      return;
+    }
+
+    if (!user.isActive) {
+      throw new BadRequestException({
+        errorCode: "ACR014",
+        message: "Account is disabled. Cannot reset password.",
+      });
+    }
+
+    if (
+      user.passwordResetExpiresAt &&
+      user.passwordResetExpiresAt > getCurrentTimestampSeconds()
+    ) {
+      throw new BadRequestException({
+        errorCode: "ACR015",
+        message: "A reset email has already been sent. Please wait before requesting again.",
+      });
+    }
+
+    const token = crypto.randomBytes(32).toString("hex");
+    const hashedToken = crypto.createHash("sha256").update(token).digest("hex");
+    const expiresAt = getCurrentTimestampSeconds() + RESET_TOKEN_EXPIRY_HOURS * 60 * 60;
+
+    await this.userRepository.query(
+      `UPDATE users SET password_reset_token = $1, password_reset_expires_at = $2 
+       WHERE id = $3`,
+      [hashedToken, expiresAt, user.id],
+    );
+
+    const baseUrl = this.configService.get<string>("USER_BASE_URL") || "http://localhost:5173";
+    const resetLink = `${baseUrl}/reset-password?token=${token}`;
+
+    this.mailService
+      .sendEmail(MAIL_EVENTS.PASSWORD_RESET, email, {
+        name: user?.displayName || user?.username || "User",
+        resetLink,
+      })
+      .catch((error) => {
+        console.error("Failed to send password reset email:", error);
+      });
+  }
+
+  async resetPassword(token: string, newPassword: string) {
+    if (!token || typeof token !== "string") {
+      throw new BadRequestException({
+        errorCode: "VAL001",
+        message: "Token is required",
+      });
+    }
+
+    if (!newPassword || typeof newPassword !== "string") {
+      throw new BadRequestException({
+        errorCode: "VAL001",
+        message: "New password is required",
+      });
+    }
+
+    if (newPassword.length < PASSWORD_MIN_LENGTH) {
+      throw new BadRequestException({
+        errorCode: "VAL001",
+        message: `Password must be at least ${PASSWORD_MIN_LENGTH} characters`,
+      });
+    }
+
+    const hashedToken = crypto.createHash("sha256").update(token).digest("hex");
+    
+    const rows = await this.userRepository.query(
+      `SELECT id, password_hash, password_reset_expires_at 
+       FROM users 
+       WHERE password_reset_token = $1 AND is_deleted = false`,
+      [hashedToken],
+    );
+
+    if (!rows || rows.length === 0) {
+      throw new BadRequestException({
+        errorCode: "ACR016",
+        message: "Invalid reset token.",
+      });
+    }
+
+    const userData = rows[0];
+    const expiresAt = parseInt(userData.password_reset_expires_at, 10);
+
+    if (!expiresAt || expiresAt < getCurrentTimestampSeconds()) {
+      await this.userRepository.query(
+        `UPDATE users SET password_reset_token = NULL, password_reset_expires_at = NULL 
+         WHERE id = $1`,
+        [userData.id],
+      );
+
+      throw new BadRequestException({
+        errorCode: "ACR017",
+        message: "Reset token has expired. Please request a new one.",
+      });
+    }
+
+    const passwordHash = userData.password_hash;
+    if (!passwordHash) {
+      throw new BadRequestException({
+        errorCode: "ACR019",
+        message: "Password reset not available for this account.",
+      });
+    }
+
+    const isSamePassword = await argon2.verify(passwordHash, newPassword);
+    if (isSamePassword) {
+      throw new BadRequestException({
+        errorCode: "ACR018",
+        message: "New password cannot be the same as your current password.",
+      });
+    }
+
+    const newHash = await argon2.hash(newPassword);
+    await this.userRepository.query(
+      `UPDATE users SET password_hash = $1, password_reset_token = NULL, 
+       password_reset_expires_at = NULL, updated_at = $2 WHERE id = $3`,
+      [newHash, getCurrentTimestampSeconds(), userData.id],
+    );
+
+    await this.logoutAll(userData.id);
   }
 }

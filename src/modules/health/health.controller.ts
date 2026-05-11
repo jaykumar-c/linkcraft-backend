@@ -11,12 +11,13 @@ export class HealthController {
   @HttpCode(HttpStatus.OK)
   healthCheck() {
     return {
-      message: "API is running",
-      errorCode: "HEALTH_OK",
+      message: 'API is running',
+      errorCode: 'HEC001',
       data: {
         status: "ok",
         timestamp: new Date().toISOString(),
       },
+      error: '',
     };
   }
 }
