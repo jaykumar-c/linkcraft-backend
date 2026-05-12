@@ -7,10 +7,11 @@ import { streamText, LanguageModel } from "ai";
 import { createGroq } from "@ai-sdk/groq";
 import { GenerateBioDto } from "./dto/generate-bio.dto";
 import { AiGeneration } from "./entities/ai-generation.entity";
-import { BioPromptBuilder } from "./prompts/bio-prompt.builder";
+import { BioPromptBuilder } from "src/common/prompts/ai/bio-prompt.builder";
 import { AiTone, AiLength, AiGenerationStatus } from "src/common/enums";
 import { UsersService } from "../users/users.service";
 import { cleanAiBioResponse } from "src/common/helpers/clean-ai-response.helper";
+import { scanLinks } from "src/common/helpers/link-scanner.helper";
 import { UserProfileInput } from "src/common/interfaces";
 import {
   GROQ_AI_MODELS,
@@ -58,31 +59,45 @@ export class AiService {
       return;
     }
 
+    // Scan user's links in the background to extract content
+    let scrapedLinks: Array<{ title: string; url: string; content: string }> = [];
+    if (dto.includeLinks !== false && userLinks.length > 0) {
+      const linksToScan = userLinks.slice(0, 3).map((l) => ({
+        title: l.title,
+        url: l.url,
+      }));
+      scrapedLinks = await scanLinks(linksToScan);
+    }
+
     // Build prompt based on user input or custom prompt
     let prompt: { system: string; user: string };
     let userPromptText = dto.customPrompt || "";
 
-    // If includeLinks is true and user has links, add them to the prompt
-    if (dto.includeLinks !== false && userLinks.length > 0) {
-      const linkTexts = userLinks
-        .slice(0, 3)
-        .map((l: any) => `${l.title}: ${l.url}`)
-        .join(", ");
-      userPromptText += `\n\nMy links (include in bio if relevant): ${linkTexts}`;
-    }
-
     if (dto.customPrompt) {
-      // Use user's custom prompt directly (with links if enabled)
+      // Append scraped link content to the custom prompt
+      if (scrapedLinks.length > 0) {
+        userPromptText += `\n\nLink details (scraped from my pages):\n${scrapedLinks
+          .map((s) => `--- ${s.title} ---\n${s.content.slice(0, 800)}\n---`)
+          .join("\n")}`;
+      } else if (dto.includeLinks !== false && userLinks.length > 0) {
+        const linkTexts = userLinks
+          .slice(0, 3)
+          .map((l: any) => `${l.title}: ${l.url}`)
+          .join(", ");
+        userPromptText += `\n\nMy links: ${linkTexts}`;
+      }
+
       prompt = {
         system:
           "You are a personal branding copywriter. Write a compelling, concise bio (2-3 sentences) based on the user's information.",
         user: userPromptText,
       };
     } else {
-      // Build prompt using the builder
+      // Use builder which handles scraped content internally
       const built = this.bioPromptBuilder.build({
         profile: userProfile,
-        links: userLinks.filter((l) => l.category !== null) as any,
+        links: userLinks,
+        scrapedLinks,
         keywords: [],
         includeLinks: dto.includeLinks !== false ? "true" : "false",
         tone: dto.tone || AiTone.PROFESSIONAL,

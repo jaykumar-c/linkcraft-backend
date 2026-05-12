@@ -9,7 +9,7 @@ import {
 } from "@nestjs/common";
 import { Response } from "express";
 import { AiService } from "./ai.service";
-import { JwtAuthGuard } from "../../common/guards/jwt-auth.guard";
+import { JwtAuthGuard, AiRateLimitGuard } from "../../common/guards";
 import { CurrentUser } from "../auth/decorators/current-user.decorator";
 import { User } from "../users/entities/user.entity";
 import { UsersService } from "../users/users.service";
@@ -26,6 +26,7 @@ export class AiController {
   ) {}
 
   @Post("generate")
+  @UseGuards(AiRateLimitGuard)
   @Header("Cache-Control", "no-cache")
   async generate(
     @CurrentUser() user: User,
@@ -34,13 +35,14 @@ export class AiController {
   ) {
     const lastMessage = body.messages?.[body.messages?.length - 1];
     const prompt = lastMessage?.content || body.customPrompt;
-    const tone = body.tone || AiTone.PROFESSIONAL;
-    const length = body.length || AiLength.MEDIUM;
+    const validTones = Object.values(AiTone);
+    const tone = validTones.includes(body.tone) ? body.tone : AiTone.PROFESSIONAL;
+    const validLengths = Object.values(AiLength);
+    const length = validLengths.includes(body.length) ? body.length : AiLength.MEDIUM;
     const includeLinks = body.includeLinks !== false;
 
     const userProfile: any = await this.usersService.getProfile(user.id);
-    const userLinks = await this.linksService.getPublicLinks(user.username);
-    const links = (userLinks as any).data || [];
+    const links = await this.linksService.getUserLinks(user.id);
 
     await this.aiService.generateBioStream(
       res,

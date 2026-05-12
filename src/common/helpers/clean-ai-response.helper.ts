@@ -1,36 +1,36 @@
+const AI_PREFIXES = [
+  /^here'?s?\s*(a\s*)?(possible\s*)?(bio|summary|description|headline|tagline|text)?:?[\s\n]*/i,
+  /^here'?s?\s*your\s*(bio|summary|description)?:?[\s\n]*/i,
+  /^here'?s?\s*\w+\s*(bio|summary)\s*for\s*you:?[\s\n]*/i,
+  /^sure[!,.]*\s*/i,
+  /^of\s*course[!,.]*\s*/i,
+  /^certainly[!,.]*\s*/i,
+  /^absolutely[!,.]*\s*/i,
+  /^no\s*problem[!,.]*\s*/i,
+];
+
+const TRAILING_QUESTIONS = /\n{0,2}(would you like me to|can i|shall i|do you want me to).*$/i;
+
 /**
- * Clean AI response - remove prefixes and trailing questions
+ * Clean AI response - remove prefixes, trailing questions, and extra whitespace
  */
-export const cleanAiBioResponse = (text: string): string => {
+export const cleanAiResponse = (text: string): string => {
   if (!text) return "";
 
   let cleaned = text;
 
-  // Remove quotes at start/end
   cleaned = cleaned.replace(/^["']+|["']+$/g, "");
 
-  // Remove AI prefixes (case insensitive)
-  cleaned = cleaned.replace(
-    /^here'?s?\s*(a\s*)?(possible\s*)?bio:?[\s\n]*/i,
-    "",
-  );
-  cleaned = cleaned.replace(/^here'?s?\s*your\s*bio:?[\s\n]*/i, "");
-  cleaned = cleaned.replace(/^here'?s?\s*\w+\s*bio\s*for\s*you:?[\s\n]*/i, "");
-  cleaned = cleaned.replace(/^sure[!,.]*\s*/i, "");
-  cleaned = cleaned.replace(/^of\s*course[!,.]*\s*/i, "");
-  cleaned = cleaned.replace(/^certainly[!,.]*\s*/i, "");
-  cleaned = cleaned.replace(/^absolutely[!,.]*\s*/i, "");
-  cleaned = cleaned.replace(/^no\s*problem[!,.]*\s*/i, "");
+  for (const prefix of AI_PREFIXES) {
+    cleaned = cleaned.replace(prefix, "");
+  }
 
-  // Remove ending questions like "Would you like me to modify..."
-  cleaned = cleaned.replace(
-    /\n{0,2}(would you like me to|would you|can i|shall i).*$/i,
-    "",
-  );
-
-  // Clean up extra whitespace and newlines
+  cleaned = cleaned.replace(TRAILING_QUESTIONS, "");
   cleaned = cleaned.replace(/\n{3,}/g, "\n\n");
   cleaned = cleaned.trim();
 
   return cleaned;
 };
+
+/** @deprecated Use cleanAiResponse instead */
+export const cleanAiBioResponse = cleanAiResponse;

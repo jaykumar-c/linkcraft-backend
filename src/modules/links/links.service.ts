@@ -458,4 +458,24 @@ export class LinksService {
       errorCode: "LNK019",
     };
   }
+
+  async getUserLinks(userId: string) {
+    const links = await this.linkRepository
+      .createQueryBuilder("link")
+      .where("link.userId = :userId", { userId })
+      .andWhere("link.isDeleted = false")
+      .orderBy("link.orderIndex", "ASC")
+      .select([
+        "link.id",
+        "link.title",
+        "link.url",
+        "link.description",
+        "link.linkType",
+        "link.category",
+        "link.orderIndex",
+      ])
+      .getMany();
+
+    return links;
+  }
 }
