@@ -1,6 +1,10 @@
 import { Injectable } from '@nestjs/common';
-import { PromptTemplateResult } from 'src/common/interfaces';
 import { AiTone } from 'src/common/enums';
+
+interface PromptTemplateResult {
+  system: string;
+  user: string;
+}
 
 interface LinkInput {
   title: string;
