@@ -14,7 +14,7 @@ import { MailService } from "./mail.service";
         transport: {
           host: configService.get<string>("MAIL_HOST"),
           port: configService.get<number>("MAIL_PORT"),
-          secure: true,
+          secure: configService.get<string>("MAIL_SECURE") === "true",
           auth: {
             user: configService.get<string>("MAIL_USER"),
             pass: configService.get<string>("MAIL_PASS"),
@@ -22,6 +22,7 @@ import { MailService } from "./mail.service";
           tls: {
             rejectUnauthorized: false,
           },
+          connectionTimeout: 5000,
         },
         defaults: {
           from: configService.get<string>("MAIL_FROM"),

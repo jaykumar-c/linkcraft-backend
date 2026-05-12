@@ -34,8 +34,10 @@ export class AiController {
   ) {
     const lastMessage = body.messages?.[body.messages?.length - 1];
     const prompt = lastMessage?.content || body.customPrompt;
-    const tone = body.tone || AiTone.PROFESSIONAL;
-    const length = body.length || AiLength.MEDIUM;
+    const validTones = Object.values(AiTone);
+    const tone = validTones.includes(body.tone) ? body.tone : AiTone.PROFESSIONAL;
+    const validLengths = Object.values(AiLength);
+    const length = validLengths.includes(body.length) ? body.length : AiLength.MEDIUM;
     const includeLinks = body.includeLinks !== false;
 
     const userProfile: any = await this.usersService.getProfile(user.id);
