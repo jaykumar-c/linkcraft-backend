@@ -15,7 +15,7 @@ export class UploadSingleDto {
 export class DeleteFileDto {
   @IsString()
   @IsNotEmpty()
-  publicId: string;
+  id: string;
 }
 
 export class DownloadFileDto {
@@ -34,11 +34,13 @@ export class BulkUploadResponse {
 }
 
 export class FileMetadata {
+  id: string;
   publicId: string;
   secureUrl: string;
   originalName: string;
   mimeType: string;
   size: number;
+  sizeMb: number;
   extension: string;
   uploadedAt: Date;
 }

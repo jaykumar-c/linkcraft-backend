@@ -1,5 +1,9 @@
 import { memoryStorage } from "multer";
-import { STORAGE_MAX_FILE_SIZE } from "../constants/storage.constants";
+import {
+  STORAGE_MAX_FILE_SIZE,
+  ALLOWED_EXTENSIONS,
+  ALLOWED_MIME_TYPES,
+} from "src/common/config/constants/common.constants";
 
 export const createMulterModuleOptions = () => {
   return {
@@ -9,23 +13,15 @@ export const createMulterModuleOptions = () => {
       files: 10,
     },
     fileFilter: (req: any, file: Express.Multer.File, cb: any) => {
-      const allowedExtensions = [".jpg", ".jpeg", ".png", ".webp", ".pdf"];
-      const ext = file.originalname.toLowerCase().substring(
-        file.originalname.lastIndexOf("."),
-      );
-      if (!allowedExtensions.includes(ext)) {
+      const ext = file.originalname
+        .toLowerCase()
+        .substring(file.originalname.lastIndexOf("."));
+      if (!ALLOWED_EXTENSIONS.includes(ext as typeof ALLOWED_EXTENSIONS[number])) {
         cb(new Error("File extension not allowed"));
         return;
       }
 
-      const allowedMimeTypes = [
-        "image/jpeg",
-        "image/png",
-        "image/webp",
-        "image/jpg",
-        "application/pdf",
-      ];
-      if (!allowedMimeTypes.includes(file.mimetype.toLowerCase())) {
+      if (!ALLOWED_MIME_TYPES.includes(file.mimetype.toLowerCase() as typeof ALLOWED_MIME_TYPES[number])) {
         cb(new Error("File type not allowed"));
         return;
       }

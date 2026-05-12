@@ -12,15 +12,18 @@ import * as crypto from "crypto";
 
 import { User } from "../users/entities/user.entity";
 import { Device } from "./entities/device.entity";
+
 import { getCurrentTimestampSeconds } from "../../common/helpers/date.helper";
 import { REGEX, VALIDATION_MESSAGES } from "../../common/helpers/regex.helper";
+
 import { MailService } from "../mail/mail.service";
-import { MAIL_EVENTS } from "../mail/constants/mail-events.constants";
 import { generateTokens } from "./helpers/token.helper";
 import { RegisterDto } from "./dto/register.dto";
-
-const PASSWORD_MIN_LENGTH = 8;
-const RESET_TOKEN_EXPIRY_HOURS = 1;
+import { MAIL_EVENTS } from "../../common/config/constants/mail-events.constants";
+import {
+  RESET_TOKEN_EXPIRY_HOURS,
+  SORT_ORDER_TYPE,
+} from "src/common/config/constants/common.constants";
 
 @Injectable()
 export class AuthService {
@@ -45,6 +48,7 @@ export class AuthService {
       });
     }
 
+    // check existing user name
     const existingUsername = await this.userRepository.findOne({
       where: { username },
     });
@@ -55,6 +59,7 @@ export class AuthService {
       });
     }
 
+    // hash the password
     const passwordHash = await argon2.hash(password);
 
     const user = this.userRepository.create({
@@ -64,10 +69,12 @@ export class AuthService {
       passwordHash,
     });
 
+    // send welcome email
     this.mailService
       .sendEmail(MAIL_EVENTS.WELCOME, email, { name: displayName || username })
       .catch((error) => console.error("Failed to send welcome email:", error));
 
+    // save user
     await this.userRepository.save(user);
 
     const tokens = await generateTokens(
@@ -139,7 +146,6 @@ export class AuthService {
       this.jwtService,
       this.configService,
       this.deviceRepository,
-      req?.headers["user-agent"],
       req?.ip,
     );
     return {
@@ -184,7 +190,6 @@ export class AuthService {
       this.jwtService,
       this.configService,
       this.deviceRepository,
-      req?.headers["user-agent"],
       req?.ip,
     );
   }
@@ -201,6 +206,7 @@ export class AuthService {
   }
 
   async logoutAll(userId: string, currentDeviceId?: string) {
+    // logout other session except for the current one
     if (currentDeviceId) {
       await this.deviceRepository
         .createQueryBuilder()
@@ -222,7 +228,7 @@ export class AuthService {
   async getSessions(userId: string) {
     const devices = await this.deviceRepository.find({
       where: { userId, isDeleted: false },
-      order: { lastUsedAt: "DESC" },
+      order: { lastUsedAt: SORT_ORDER_TYPE.DESC },
       select: ["id", "deviceInfo", "lastUsedAt", "createdAt"],
     });
 
@@ -234,8 +240,14 @@ export class AuthService {
     }));
   }
 
-  async checkUsernameAvailability(username: string): Promise<{ available: boolean; message: string }> {
-    if (!username || typeof username !== 'string' || username.trim().length < 3) {
+  async checkUsernameAvailability(
+    username: string,
+  ): Promise<{ available: boolean; message: string }> {
+    if (
+      !username ||
+      typeof username !== "string" ||
+      username.trim().length < 3
+    ) {
       return {
         available: false,
         message: VALIDATION_MESSAGES.USERNAME.MIN_LENGTH,
@@ -251,19 +263,19 @@ export class AuthService {
 
     const existingUser = await this.userRepository.findOne({
       where: { username: username.toLowerCase() },
-      select: ['id'],
+      select: ["id"],
     });
 
     if (existingUser) {
       return {
         available: false,
-        message: 'Username is already taken',
+        message: "Username is already taken",
       };
     }
 
     return {
       available: true,
-      message: 'Username is available',
+      message: "Username is available",
     };
   }
 
@@ -297,13 +309,15 @@ export class AuthService {
     ) {
       throw new BadRequestException({
         errorCode: "ACR015",
-        message: "A reset email has already been sent. Please wait before requesting again.",
+        message:
+          "A reset email has already been sent. Please wait before requesting again.",
       });
     }
 
     const token = crypto.randomBytes(32).toString("hex");
     const hashedToken = crypto.createHash("sha256").update(token).digest("hex");
-    const expiresAt = getCurrentTimestampSeconds() + RESET_TOKEN_EXPIRY_HOURS * 60 * 60;
+    const expiresAt =
+      getCurrentTimestampSeconds() + RESET_TOKEN_EXPIRY_HOURS * 60 * 60;
 
     await this.userRepository.query(
       `UPDATE users SET password_reset_token = $1, password_reset_expires_at = $2 
@@ -311,7 +325,7 @@ export class AuthService {
       [hashedToken, expiresAt, user.id],
     );
 
-    const baseUrl = this.configService.get<string>("USER_BASE_URL") || "http://localhost:5173";
+    const baseUrl = this.configService.get<string>("USER_BASE_URL");
     const resetLink = `${baseUrl}/reset-password?token=${token}`;
 
     this.mailService
@@ -325,29 +339,15 @@ export class AuthService {
   }
 
   async resetPassword(token: string, newPassword: string) {
-    if (!token || typeof token !== "string") {
-      throw new BadRequestException({
-        errorCode: "VAL001",
-        message: "Token is required",
-      });
-    }
-
     if (!newPassword || typeof newPassword !== "string") {
       throw new BadRequestException({
-        errorCode: "VAL001",
+        errorCode: "ARP001",
         message: "New password is required",
       });
     }
 
-    if (newPassword.length < PASSWORD_MIN_LENGTH) {
-      throw new BadRequestException({
-        errorCode: "VAL001",
-        message: `Password must be at least ${PASSWORD_MIN_LENGTH} characters`,
-      });
-    }
-
     const hashedToken = crypto.createHash("sha256").update(token).digest("hex");
-    
+
     const rows = await this.userRepository.query(
       `SELECT id, password_hash, password_reset_expires_at 
        FROM users 
@@ -357,7 +357,7 @@ export class AuthService {
 
     if (!rows || rows.length === 0) {
       throw new BadRequestException({
-        errorCode: "ACR016",
+        errorCode: "ARP002",
         message: "Invalid reset token.",
       });
     }
@@ -373,7 +373,7 @@ export class AuthService {
       );
 
       throw new BadRequestException({
-        errorCode: "ACR017",
+        errorCode: "ARP003",
         message: "Reset token has expired. Please request a new one.",
       });
     }
@@ -381,7 +381,7 @@ export class AuthService {
     const passwordHash = userData.password_hash;
     if (!passwordHash) {
       throw new BadRequestException({
-        errorCode: "ACR019",
+        errorCode: "ARP004",
         message: "Password reset not available for this account.",
       });
     }
@@ -389,7 +389,7 @@ export class AuthService {
     const isSamePassword = await argon2.verify(passwordHash, newPassword);
     if (isSamePassword) {
       throw new BadRequestException({
-        errorCode: "ACR018",
+        errorCode: "ARP005",
         message: "New password cannot be the same as your current password.",
       });
     }
@@ -401,6 +401,70 @@ export class AuthService {
       [newHash, getCurrentTimestampSeconds(), userData.id],
     );
 
+    // password is changed logout all other sessions
     await this.logoutAll(userData.id);
+  }
+
+  async changePassword(
+    userId: string,
+    currentPassword: string,
+    newPassword: string,
+  ) {
+    const rows = await this.userRepository.query(
+      `SELECT id, is_active AS "isActive", is_deleted AS "isDeleted", password_hash AS "passwordHash"
+       FROM users
+       WHERE id = $1`,
+      [userId],
+    );
+
+    const user = rows?.[0] ?? null;
+    if (!user || user.isDeleted) {
+      throw new UnauthorizedException({
+        errorCode: "ACP001",
+        message: "Account not found.",
+      });
+    }
+
+    if (!user.isActive) {
+      throw new UnauthorizedException({
+        errorCode: "ACP002",
+        message: "Account is disabled. Cannot change password.",
+      });
+    }
+
+    if (!user.passwordHash) {
+      throw new BadRequestException({
+        errorCode: "ACP003",
+        message:
+          "Password change is not available for OAuth accounts. Set a password through forgot-password first.",
+      });
+    }
+
+    const isCurrentPasswordValid = await argon2.verify(
+      user.passwordHash,
+      currentPassword,
+    );
+    if (!isCurrentPasswordValid) {
+      throw new BadRequestException({
+        errorCode: "ACP004",
+        message: "Current password is incorrect.",
+      });
+    }
+
+    const isSamePassword = await argon2.verify(user.passwordHash, newPassword);
+    if (isSamePassword) {
+      throw new BadRequestException({
+        errorCode: "ACP005",
+        message: "New password cannot be the same as your current password.",
+      });
+    }
+
+    const newHash = await argon2.hash(newPassword);
+    await this.userRepository.query(
+      `UPDATE users SET password_hash = $1, updated_at = $2 WHERE id = $3`,
+      [newHash, getCurrentTimestampSeconds(), userId],
+    );
+
+    await this.logoutAll(userId);
   }
 }

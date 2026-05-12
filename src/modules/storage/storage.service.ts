@@ -1,18 +1,27 @@
-import {
-  Injectable,
-  BadRequestException,
-  Logger,
-} from "@nestjs/common";
-import { ConfigService } from "@nestjs/config";
+import { Injectable, BadRequestException, Logger } from "@nestjs/common";
+import { InjectRepository } from "@nestjs/typeorm";
+import { Repository } from "typeorm";
 import { v2 as cloudinary, UploadApiResponse } from "cloudinary";
 
-import { CloudinaryProvider } from "./providers/cloudinary.provider";
-import { validateFile, validateBulkFiles, sanitizeFilename, getFileExtension } from "./helpers/file.helper";
-import { STORAGE_MAX_FILE_SIZE, STORAGE_MAX_BULK_FILES } from "./constants/storage.constants";
-import { StorageErrorMessage } from "./enums/storage.enums";
-import { UploadSingleDto, DeleteFileDto, DownloadFileDto, FileMetadata, FailedUpload, BulkUploadResponse } from "./dto/storage.dto";
-
-const DEFAULT_FOLDER = "linkcraft";
+import { CloudinaryProvider } from "../../common/providers/cloudinary.provider";
+import {
+  validateFile,
+  validateBulkFiles,
+  sanitizeFilename,
+  getFileExtension,
+} from "../../common/helpers/file.helper";
+import {
+  STORAGE_MAX_FILE_SIZE,
+  STORAGE_MAX_BULK_FILES,
+  DEFAULT_STORAGE_FOLDER,
+} from "../../common/config/constants/common.constants";
+import {
+  UploadSingleDto,
+  FileMetadata,
+  FailedUpload,
+  BulkUploadResponse,
+} from "./dto/storage.dto";
+import { Media } from "./entities/media.entity";
 
 @Injectable()
 export class StorageService {
@@ -20,10 +29,15 @@ export class StorageService {
 
   constructor(
     private cloudinaryProvider: CloudinaryProvider,
-    private configService: ConfigService,
+    @InjectRepository(Media)
+    private mediaRepository: Repository<Media>,
   ) {}
 
-  async uploadSingle(file: Express.Multer.File, dto: UploadSingleDto): Promise<FileMetadata> {
+  async uploadSingle(
+    file: Express.Multer.File,
+    dto: UploadSingleDto,
+    userId: string,
+  ): Promise<FileMetadata> {
     if (!file) {
       throw new BadRequestException({
         errorCode: "STG001",
@@ -38,7 +52,11 @@ export class StorageService {
       });
     }
 
-    const validation = validateFile({ originalname: file.originalname, mimetype: file.mimetype, size: file.size });
+    const validation = validateFile({
+      originalname: file.originalname,
+      mimetype: file.mimetype,
+      size: file.size,
+    });
     if (!validation.isValid) {
       throw new BadRequestException({
         errorCode: validation.errorCode,
@@ -48,7 +66,7 @@ export class StorageService {
 
     try {
       const sanitizedName = sanitizeFilename(file.originalname);
-      const folder = DEFAULT_FOLDER;
+      const folder = DEFAULT_STORAGE_FOLDER;
 
       const uploadOptions = {
         folder,
@@ -58,19 +76,37 @@ export class StorageService {
         unique_filename: true,
       };
 
-      const result = await this.cloudinaryProvider.uploadStream(file.buffer, uploadOptions);
+      const result = await this.cloudinaryProvider.uploadStream(
+        file.buffer,
+        uploadOptions,
+      );
 
-      return this.mapToFileMetadata(file, result);
+      const media = this.mediaRepository.create({
+        publicId: result.public_id,
+        secureUrl: result.secure_url,
+        userId,
+        originalName: file.originalname,
+        mimeType: file.mimetype,
+        sizeMb: parseFloat((result.bytes / (1024 * 1024)).toFixed(2)),
+        extension: getFileExtension(file.originalname),
+      });
+      const saved = await this.mediaRepository.save(media);
+
+      return this.mapToFileMetadata(file, result, saved);
     } catch (error) {
       this.logger.error(`Upload failed: ${error}`);
       throw new BadRequestException({
         errorCode: "STG003",
-        message: StorageErrorMessage.UPLOAD_FAILED,
+        message: "Upload failed",
       });
     }
   }
 
-  async uploadBulk(files: Express.Multer.File[], dto: UploadSingleDto): Promise<BulkUploadResponse> {
+  async uploadBulk(
+    files: Express.Multer.File[],
+    dto: UploadSingleDto,
+    userId: string,
+  ): Promise<BulkUploadResponse> {
     if (!files || files.length === 0) {
       throw new BadRequestException({
         errorCode: "STG004",
@@ -107,7 +143,7 @@ export class StorageService {
 
     const uploadPromises = files.map(async (file) => {
       try {
-        return await this.uploadSingle(file, dto);
+        return await this.uploadSingle(file, dto, userId);
       } catch (error) {
         return {
           success: false,
@@ -141,7 +177,7 @@ export class StorageService {
     if (failed.length > 0 && uploaded.length === 0) {
       throw new BadRequestException({
         errorCode: "STG007",
-        message: StorageErrorMessage.BULK_UPLOAD_ALL_FAILED,
+        message: "Bulk upload failed",
       });
     }
 
@@ -152,26 +188,41 @@ export class StorageService {
     return { uploaded, failed };
   }
 
-  async deleteFile(dto: DeleteFileDto): Promise<{ success: boolean }> {
-    if (!dto.publicId) {
+  async deleteFile(id: string, userId: string): Promise<{ success: boolean }> {
+    const media = await this.mediaRepository.findOne({
+      where: { id, userId },
+    });
+
+    if (!media) {
       throw new BadRequestException({
         errorCode: "STG008",
-        message: "publicId is required",
+        message: "File not found",
       });
     }
 
     try {
-      await this.cloudinaryProvider.destroy(dto.publicId);
+      await this.cloudinaryProvider.destroy(media.publicId);
+
+      await this.mediaRepository.query(
+        `UPDATE users SET avatar_media_id = NULL WHERE avatar_media_id = $1`,
+        [media.id],
+      );
+
+      await this.mediaRepository.remove(media);
+
       return { success: true };
     } catch (error) {
       throw new BadRequestException({
         errorCode: "STG009",
-        message: StorageErrorMessage.DELETE_FAILED,
+        message: "Delete failed",
       });
     }
   }
 
-  async generateDownloadUrl(publicId: string, expiresIn?: string): Promise<string> {
+  async generateDownloadUrl(
+    publicId: string,
+    expiresIn?: string,
+  ): Promise<string> {
     if (!publicId) {
       throw new BadRequestException({
         errorCode: "STG010",
@@ -199,18 +250,24 @@ export class StorageService {
     } catch (error) {
       throw new BadRequestException({
         errorCode: "STG011",
-        message: StorageErrorMessage.GENERATE_URL_FAILED,
+        message: "Failed to generate URL",
       });
     }
   }
 
-  private mapToFileMetadata(file: Express.Multer.File, result: UploadApiResponse): FileMetadata {
+  private mapToFileMetadata(
+    file: Express.Multer.File,
+    result: UploadApiResponse,
+    media: Media,
+  ): FileMetadata {
     return {
+      id: media.id,
       publicId: result.public_id,
       secureUrl: result.secure_url,
       originalName: file.originalname,
       mimeType: result.format ? `image/${result.format}` : file.mimetype,
       size: result.bytes,
+      sizeMb: media.sizeMb,
       extension: getFileExtension(file.originalname),
       uploadedAt: new Date(result.created_at),
     };

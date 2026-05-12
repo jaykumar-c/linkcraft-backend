@@ -1,4 +1,12 @@
-import { Controller, Post, Get, Body, UseGuards, Res, Header } from "@nestjs/common";
+import {
+  Controller,
+  Post,
+  Get,
+  Body,
+  UseGuards,
+  Res,
+  Header,
+} from "@nestjs/common";
 import { Response } from "express";
 import { AiService } from "./ai.service";
 import { JwtAuthGuard } from "../../common/guards/jwt-auth.guard";
@@ -6,8 +14,9 @@ import { CurrentUser } from "../auth/decorators/current-user.decorator";
 import { User } from "../users/entities/user.entity";
 import { UsersService } from "../users/users.service";
 import { LinksService } from "../links/links.service";
+import { AiLength, AiTone } from "src/common/enums";
 
-@Controller("api/v1/ai")
+@Controller("ai")
 @UseGuards(JwtAuthGuard)
 export class AiController {
   constructor(
@@ -25,8 +34,8 @@ export class AiController {
   ) {
     const lastMessage = body.messages?.[body.messages?.length - 1];
     const prompt = lastMessage?.content || body.customPrompt;
-    const tone = body.tone || "professional";
-    const length = body.length || "medium";
+    const tone = body.tone || AiTone.PROFESSIONAL;
+    const length = body.length || AiLength.MEDIUM;
     const includeLinks = body.includeLinks !== false;
 
     const userProfile: any = await this.usersService.getProfile(user.id);
@@ -36,8 +45,15 @@ export class AiController {
     await this.aiService.generateBioStream(
       res,
       user.id,
-      { displayName: userProfile.display_name, profession: userProfile.profession },
-      links.map((l: any) => ({ title: l.title, url: l.url, category: l.category })),
+      {
+        displayName: userProfile.display_name,
+        profession: userProfile.profession,
+      },
+      links.map((l: any) => ({
+        title: l.title,
+        url: l.url,
+        category: l.category,
+      })),
       { customPrompt: prompt, tone, length, includeLinks },
     );
   }
@@ -46,10 +62,10 @@ export class AiController {
   async getHistory(@CurrentUser() user: User) {
     const generations = await this.aiService.getUserGenerationHistory(user.id);
     return {
-      message: '',
-      errorCode: 'AIC001',
+      message: "",
+      errorCode: "AIC001",
       data: generations,
-      error: '',
+      error: "",
     };
   }
 
@@ -60,10 +76,10 @@ export class AiController {
   ) {
     await this.aiService.applyGenerationToProfile(user.id, body.generationId);
     return {
-      message: 'Bio applied to profile',
-      errorCode: 'AIC002',
+      message: "Bio applied to profile",
+      errorCode: "AIC002",
       data: {},
-      error: '',
+      error: "",
     };
   }
 }

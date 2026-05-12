@@ -12,14 +12,17 @@ import {
   UploadedFile,
   UploadedFiles,
 } from "@nestjs/common";
-import { FileFieldsInterceptor, FileInterceptor } from "@nestjs/platform-express";
+import {
+  FileFieldsInterceptor,
+  FileInterceptor,
+} from "@nestjs/platform-express";
 import { JwtAuthGuard } from "../../common/guards/jwt-auth.guard";
 import { CurrentUser } from "../auth/decorators/current-user.decorator";
 import { User } from "../users/entities/user.entity";
 import { StorageService } from "./storage.service";
 import { UploadSingleDto } from "./dto/upload-single.dto";
 import { DeleteFileDto, DownloadFileDto } from "./dto/storage.dto";
-import { createMulterModuleOptions } from "./config/multer.config";
+import { createMulterModuleOptions } from "../../config/multer.config";
 
 @Controller("storage")
 export class StorageController {
@@ -34,46 +37,51 @@ export class StorageController {
     @UploadedFile() file: Express.Multer.File,
     @Body() body: UploadSingleDto,
   ) {
-    const result = await this.storageService.uploadSingle(file, body);
+    const result = await this.storageService.uploadSingle(file, body, user.id);
     return {
-      message: 'File uploaded successfully',
-      errorCode: 'STC001',
+      message: "File uploaded successfully",
+      errorCode: "STC001",
       data: result,
-      error: '',
+      error: "",
     };
   }
 
   @Post("upload/bulk")
   @UseGuards(JwtAuthGuard)
-  @UseInterceptors(FileFieldsInterceptor([{ name: "files", maxCount: 10 }], createMulterModuleOptions()))
+  @UseInterceptors(
+    FileFieldsInterceptor(
+      [{ name: "files", maxCount: 10 }],
+      createMulterModuleOptions(),
+    ),
+  )
   @HttpCode(HttpStatus.CREATED)
   async uploadBulk(
     @CurrentUser() user: User,
     @UploadedFiles() files: Express.Multer.File[],
     @Body() body: UploadSingleDto,
   ) {
-    const result = await this.storageService.uploadBulk(files, body);
+    const result = await this.storageService.uploadBulk(files, body, user.id);
     return {
-      message: result.failed.length > 0 ? 'Some files uploaded' : 'Files uploaded successfully',
-      errorCode: result.failed.length > 0 ? 'STC002' : 'STC001',
+      message:
+        result.failed.length > 0
+          ? "Some files uploaded"
+          : "Files uploaded successfully",
+      errorCode: result.failed.length > 0 ? "STC002" : "STC001",
       data: result,
-      error: '',
+      error: "",
     };
   }
 
   @Delete("file")
   @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.OK)
-  async deleteFile(
-    @CurrentUser() user: User,
-    @Body() body: DeleteFileDto,
-  ) {
-    const result = await this.storageService.deleteFile(body);
+  async deleteFile(@CurrentUser() user: User, @Query() query: DeleteFileDto) {
+    const result = await this.storageService.deleteFile(query.id, user.id);
     return {
-      message: 'File deleted successfully',
-      errorCode: 'STC003',
+      message: "File deleted successfully",
+      errorCode: "STC003",
       data: result,
-      error: '',
+      error: "",
     };
   }
 
@@ -86,18 +94,21 @@ export class StorageController {
   ) {
     if (!query.publicId) {
       return {
-        message: '',
-        errorCode: 'VAL001',
+        message: "",
+        errorCode: "VAL001",
         data: {},
-        error: 'publicId is required',
+        error: "publicId is required",
       };
     }
-    const url = await this.storageService.generateDownloadUrl(query.publicId, query.expiresIn);
+    const url = await this.storageService.generateDownloadUrl(
+      query.publicId,
+      query.expiresIn,
+    );
     return {
-      message: '',
-      errorCode: 'STC004',
+      message: "",
+      errorCode: "STC004",
       data: { url },
-      error: '',
+      error: "",
     };
   }
 }

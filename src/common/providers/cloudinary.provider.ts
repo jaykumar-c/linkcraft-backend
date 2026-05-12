@@ -6,20 +6,7 @@ import {
   DeleteApiResponse,
   ResourceApiResponse,
 } from "cloudinary";
-
-export interface CloudinaryConfig {
-  cloud_name: string;
-  api_key: string;
-  api_secret: string;
-}
-
-export interface UploadOptions {
-  folder?: string;
-  public_id?: string;
-  resource_type?: "auto" | "image" | "video" | "raw" | "multi";
-  use_filename?: boolean;
-  unique_filename?: boolean;
-}
+import { UploadOptions } from "src/common/interfaces";
 
 @Injectable()
 export class CloudinaryProvider implements OnModuleInit {

@@ -18,6 +18,7 @@ import { LoginDto } from "./dto/login.dto";
 import { LogoutDto } from "./dto/logout.dto";
 import { ForgotPasswordDto } from "./dto/forgot-password.dto";
 import { ResetPasswordDto } from "./dto/reset-password.dto";
+import { ChangePasswordDto } from "./dto/change-password.dto";
 
 @Controller("auth")
 export class AuthController {
@@ -123,6 +124,26 @@ export class AuthController {
     return {
       message: "Password reset successfully",
       errorCode: "ACR007",
+      data: {},
+      error: "",
+    };
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post("change-password")
+  @HttpCode(HttpStatus.OK)
+  async changePassword(
+    @Body() body: ChangePasswordDto,
+    @CurrentUser() user: User,
+  ) {
+    await this.authService.changePassword(
+      user.id,
+      body.currentPassword,
+      body.newPassword,
+    );
+    return {
+      message: "Password changed successfully.",
+      errorCode: "ACR021",
       data: {},
       error: "",
     };

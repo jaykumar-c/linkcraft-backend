@@ -1,16 +1,9 @@
-import { STORAGE_MAX_FILE_SIZE, ALLOWED_MIME_TYPES, ALLOWED_EXTENSIONS } from "../constants/storage.constants";
-
-export interface FileValidationResult {
-  isValid: boolean;
-  error?: string;
-  errorCode?: string;
-}
-
-export interface FileLike {
-  originalname: string;
-  mimetype: string;
-  size: number;
-}
+import {
+  STORAGE_MAX_FILE_SIZE,
+  ALLOWED_MIME_TYPES,
+  ALLOWED_EXTENSIONS,
+} from "../config/constants/common.constants";
+import { FileLike, FileValidationResult } from "../interfaces";
 
 export const validateFile = (file: FileLike): FileValidationResult => {
   if (!file) {
@@ -33,7 +26,8 @@ export const validateFile = (file: FileLike): FileValidationResult => {
   if (!ALLOWED_MIME_TYPES.includes(fileMimeType as any)) {
     return {
       isValid: false,
-      error: "File type not allowed. Only JPEG, PNG, WebP, and PDF files are accepted.",
+      error:
+        "File type not allowed. Only JPEG, PNG, WebP, and PDF files are accepted.",
       errorCode: "STG012",
     };
   }
@@ -50,9 +44,7 @@ export const validateFile = (file: FileLike): FileValidationResult => {
   return { isValid: true };
 };
 
-export const validateBulkFiles = (
-  files: FileLike[],
-): FileValidationResult => {
+export const validateBulkFiles = (files: FileLike[]): FileValidationResult => {
   if (!files || files.length === 0) {
     return {
       isValid: false,
@@ -99,7 +91,15 @@ export const getMimeTypeFromExtension = (
 };
 
 export const isExecutableFile = (filename: string): boolean => {
-  const execExtensions = [".exe", ".bat", ".cmd", ".sh", ".ps1", ".scr", ".com"];
+  const execExtensions = [
+    ".exe",
+    ".bat",
+    ".cmd",
+    ".sh",
+    ".ps1",
+    ".scr",
+    ".com",
+  ];
   const ext = getFileExtension(filename);
   return execExtensions.includes(ext);
 };

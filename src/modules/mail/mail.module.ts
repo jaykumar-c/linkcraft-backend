@@ -1,10 +1,10 @@
-import { Module } from '@nestjs/common';
-import { MailerModule } from '@nestjs-modules/mailer';
-import { HandlebarsAdapter } from '@nestjs-modules/mailer/adapters/handlebars.adapter';
+import { Module } from "@nestjs/common";
+import { MailerModule } from "@nestjs-modules/mailer";
+import { HandlebarsAdapter } from "@nestjs-modules/mailer/adapters/handlebars.adapter";
 
-import { ConfigModule, ConfigService } from '@nestjs/config';
-import { join } from 'path';
-import { MailService } from './mail.service';
+import { ConfigModule, ConfigService } from "@nestjs/config";
+import { join } from "path";
+import { MailService } from "./mail.service";
 
 @Module({
   imports: [
@@ -12,22 +12,22 @@ import { MailService } from './mail.service';
       imports: [ConfigModule],
       useFactory: async (configService: ConfigService) => ({
         transport: {
-          host: configService.get<string>('MAIL_HOST'),
-          port: 465,
+          host: configService.get<string>("MAIL_HOST"),
+          port: configService.get<number>("MAIL_PORT"),
           secure: true,
           auth: {
-            user: configService.get<string>('MAIL_USER'),
-            pass: configService.get<string>('MAIL_PASS'),
+            user: configService.get<string>("MAIL_USER"),
+            pass: configService.get<string>("MAIL_PASS"),
           },
           tls: {
             rejectUnauthorized: false,
           },
         },
         defaults: {
-          from: configService.get<string>('MAIL_FROM'),
+          from: configService.get<string>("MAIL_FROM"),
         },
         template: {
-          dir: join(__dirname, 'templates'),
+          dir: join(__dirname, "templates"),
           adapter: new HandlebarsAdapter(),
           options: {
             strict: true,

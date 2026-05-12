@@ -1,8 +1,9 @@
-import { Entity, Column, Index, OneToMany } from "typeorm";
+import { Entity, Column, Index, OneToMany, ManyToOne, JoinColumn } from "typeorm";
 import { Link } from "../../links/entities/link.entity";
 import { BaseEntity } from "src/common/base.entity";
 import { AiGeneration } from "src/modules/ai/entities/ai-generation.entity";
 import { Device } from "src/modules/auth/entities/device.entity";
+import { Media } from "src/modules/storage/entities/media.entity";
 import { UserPlan } from "src/common/enums";
 import { ThemeSettings } from "src/common/interfaces";
 
@@ -38,8 +39,12 @@ export class User extends BaseEntity {
   })
   displayName: string | null;
 
-  @Column({ type: "text", nullable: true, name: "avatar_url" })
-  avatarUrl: string | null;
+  @Column({ type: "uuid", nullable: true, name: "avatar_media_id" })
+  avatarMediaId: string | null;
+
+  @ManyToOne(() => Media, { nullable: true, onDelete: "SET NULL" })
+  @JoinColumn({ name: "avatar_media_id" })
+  avatarMedia: Media | null;
 
   @Column({ type: "text", nullable: true, name: "bio_text" })
   bioText: string | null;

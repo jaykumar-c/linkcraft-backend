@@ -1,4 +1,4 @@
-import { MAIL_EVENTS } from '../constants/mail-events.constants';
+import { MAIL_EVENTS } from '../../../common/config/constants/mail-events.constants';
 
 export interface EmailTemplateConfig {
   templateFile: string;
