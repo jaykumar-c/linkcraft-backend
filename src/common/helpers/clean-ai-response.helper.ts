@@ -7,6 +7,10 @@ const AI_PREFIXES = [
   /^certainly[!,.]*\s*/i,
   /^absolutely[!,.]*\s*/i,
   /^no\s*problem[!,.]*\s*/i,
+  /^(generate|write|create|here is|here's)\s*(a|an|your)?\s*(short|medium|long|professional|casual|funny|clever|minimalist)?\s*(bio|summary|description|text).*?:?[\s\n]*/i,
+  /^(short|medium|long|professional|casual|funny|clever|minimalist)\s*(bio|summary|description).*?:?[\s\n]*/i,
+  /^here('s| is)\s*(my|the)\s*(bio|summary|description|text).*?:?[\s\n]*/i,
+  /^(i'd|i would)\s*(be\s*)?(happy|glad)\s*to\s*(help|write|create|generate).*?:?[\s\n]*/i,
 ];
 
 const TRAILING_QUESTIONS = /\n{0,2}(would you like me to|can i|shall i|do you want me to).*$/i;

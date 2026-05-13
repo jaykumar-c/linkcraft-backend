@@ -50,6 +50,12 @@ export class AiService {
       this.configService.get<string>("GROQ_MODEL") || GROQ_AI_MODELS.DEFAULT;
     const groqApiKey = this.configService.get<string>("GROQ_API_KEY");
 
+    // Set SSE headers early
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("Connection", "keepalive");
+    res.setHeader("Access-Control-Allow-Origin", "*");
+
     // Validate Groq configuration
     if (!groqApiKey || !this.groqClient) {
       res.write(
@@ -67,9 +73,20 @@ export class AiService {
         url: l.url,
       }));
       scrapedLinks = await scanLinks(linksToScan);
+
+      if (scrapedLinks.length === 0) {
+        res.write(
+          `data: ${JSON.stringify({
+            type: "warning",
+            message:
+              "Could not extract content from your links (some platforms block automated scanning). Generating bio from profile details only.",
+          })}\n\n`,
+        );
+      }
     }
 
     // Build prompt based on user input or custom prompt
+
     let prompt: { system: string; user: string };
     let userPromptText = dto.customPrompt || "";
 
@@ -89,7 +106,7 @@ export class AiService {
 
       prompt = {
         system:
-          "You are a personal branding copywriter. Write a compelling, concise bio (2-3 sentences) based on the user's information.",
+          "You are a personal branding copywriter. Write a compelling, concise bio (2-3 sentences) based on the user's information. Output the bio only. No introductions, no explanations, no prefixes. Start directly with the bio text.",
         user: userPromptText,
       };
     } else {
@@ -105,12 +122,6 @@ export class AiService {
       });
       prompt = { system: built.system, user: built.user };
     }
-
-    // Set SSE headers
-    res.setHeader("Content-Type", "text/event-stream");
-    res.setHeader("Cache-Control", "no-cache");
-    res.setHeader("Connection", "keepalive");
-    res.setHeader("Access-Control-Allow-Origin", "*");
 
     try {
       // Stream response using Vercel AI SDK
