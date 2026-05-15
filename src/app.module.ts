@@ -11,6 +11,7 @@ import { LinksModule } from "./modules/links/links.module";
 import { AnalyticsModule } from "./modules/analytics/analytics.module";
 import { HealthModule } from "./modules/health/health.module";
 import { StorageModule } from "./modules/storage/storage.module";
+import { AdminModule } from "./modules/admin/admin.module";
 
 @Module({
   imports: [
@@ -33,6 +34,7 @@ import { StorageModule } from "./modules/storage/storage.module";
     HealthModule,
     AiModule,
     StorageModule,
+    AdminModule,
   ],
   controllers: [],
   providers: [

@@ -20,6 +20,7 @@ export const generateTokens = async (
     email: user.email, 
     plan: user.plan, 
     username: user.username,
+    role: user.role,
   };
   
   // Save device first to get ID

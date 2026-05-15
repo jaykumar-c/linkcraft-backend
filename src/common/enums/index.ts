@@ -40,3 +40,8 @@ export enum AnalyticsEventType {
   PROFILE_VIEW = "profile_view",
   LINK_CLICK = "link_click",
 }
+
+export enum UserRole {
+  USER = "user",
+  ADMIN = "admin",
+}

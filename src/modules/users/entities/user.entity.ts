@@ -4,7 +4,7 @@ import { BaseEntity } from "src/common/base.entity";
 import { AiGeneration } from "src/modules/ai/entities/ai-generation.entity";
 import { Device } from "src/modules/auth/entities/device.entity";
 import { Media } from "src/modules/storage/entities/media.entity";
-import { UserPlan } from "src/common/enums";
+import { UserPlan, UserRole } from "src/common/enums";
 import { ThemeSettings } from "src/common/interfaces";
 
 @Entity("users")
@@ -12,6 +12,7 @@ import { ThemeSettings } from "src/common/interfaces";
 @Index(["username"], { unique: true })
 @Index(["isDeleted"])
 @Index(["plan"])
+@Index(["role"])
 export class User extends BaseEntity {
   @Column({ type: "varchar", length: 255, unique: true, name: "email" })
   email: string;
@@ -70,6 +71,14 @@ export class User extends BaseEntity {
     name: "plan",
   })
   plan: UserPlan;
+
+  @Column({
+    type: "enum",
+    enum: UserRole,
+    default: UserRole.USER,
+    name: "role",
+  })
+  role: UserRole;
 
   // ─── Password Reset ────────────────────────────────────────────────────────
 
