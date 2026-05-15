@@ -18,7 +18,11 @@ import { User } from "../users/entities/user.entity";
 import { Device } from "../auth/entities/device.entity";
 import { generateTokens } from "../auth/helpers/token.helper";
 import { AdminLoginDto } from "./dto/admin-login.dto";
-import { ForbiddenException, UnauthorizedException } from "@nestjs/common";
+import {
+  ForbiddenException,
+  UnauthorizedException,
+  BadRequestException,
+} from "@nestjs/common";
 
 @Controller("admin/auth")
 export class AdminAuthController {
@@ -77,9 +81,9 @@ export class AdminAuthController {
 
     const isValid = await argon2.verify(user.passwordHash, dto.password);
     if (!isValid) {
-      throw new UnauthorizedException({
-        errorCode: "ADM004",
-        message: "Invalid admin credentials.",
+      throw new BadRequestException({
+        errorCode: "ADM005",
+        message: "Wrong password.",
       });
     }
 
