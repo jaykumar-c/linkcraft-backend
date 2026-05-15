@@ -117,15 +117,16 @@ export class AdminService implements OnModuleInit {
           "user.id",
           "user.email",
           "user.username",
-          "user.total_ai_tokens_used",
+          "user.totalAiTokensUsed",
         ])
         .where("user.is_deleted = false")
-        .orderBy("user.total_ai_tokens_used", "DESC")
+        .orderBy("user.totalAiTokensUsed", "DESC")
         .limit(5)
         .getMany(),
       this.userRepository
         .createQueryBuilder("user")
         .where("user.is_deleted = false")
+        .andWhere("user.role != :adminRole", { adminRole: UserRole.ADMIN })
         .orderBy("user.created_at", "DESC")
         .limit(5)
         .getMany(),
@@ -166,7 +167,7 @@ export class AdminService implements OnModuleInit {
     };
   }
 
-  async getUsers(dto: AdminUserQueryDto) {
+  async getUsers(dto: AdminUserQueryDto, excludeUserId?: string) {
     if (dto.id) {
       return this.getUserById(dto.id);
     }
@@ -179,6 +180,10 @@ export class AdminService implements OnModuleInit {
       .createQueryBuilder("user")
       .leftJoinAndSelect("user.avatarMedia", "media")
       .where("user.is_deleted = false");
+
+    if (excludeUserId) {
+      query.andWhere("user.id != :excludeUserId", { excludeUserId });
+    }
 
     if (dto.search) {
       query.andWhere(
@@ -424,6 +429,10 @@ export class AdminService implements OnModuleInit {
   }
 
   async getAiHistory(dto: AdminAiHistoryQueryDto) {
+    if (dto.id) {
+      return this.getAiGenerationById(dto.id);
+    }
+
     const page = dto.page || 1;
     const limit = dto.limit || 20;
     const skip = (page - 1) * limit;
@@ -465,6 +474,13 @@ export class AdminService implements OnModuleInit {
       query.andWhere("gen.tone = :tone", { tone: dto.tone });
     }
 
+    if (dto.search) {
+      query.andWhere(
+        "(gen.prompt ILIKE :search OR user.email ILIKE :search OR user.username ILIKE :search)",
+        { search: `%${dto.search}%` },
+      );
+    }
+
     if (dto.dateFrom) {
       query.andWhere("gen.created_at >= :dateFrom", { dateFrom: dto.dateFrom });
     }
@@ -503,6 +519,48 @@ export class AdminService implements OnModuleInit {
       errorCode: "ADMS009",
       data: mapped,
       total,
+    };
+  }
+
+  private async getAiGenerationById(id: string) {
+    const gen = await this.aiGenerationRepository.findOne({
+      where: { id },
+      relations: ["user", "user.avatarMedia"],
+    });
+
+    if (!gen) {
+      return {
+        errorCode: "ADMS011",
+        data: null,
+      };
+    }
+
+    const u = (gen as any).user;
+    return {
+      errorCode: "ADMS012",
+      data: {
+        id: gen.id,
+        userId: gen.userId,
+        prompt: gen.prompt,
+        response: gen.response,
+        model: gen.model,
+        tone: gen.tone,
+        length: gen.length,
+        status: gen.status,
+        tokensInput: gen.tokensInput,
+        tokensOutput: gen.tokensOutput,
+        tokensTotal: gen.tokensTotal,
+        costUsd: gen.costUsd,
+        wasApplied: gen.wasApplied,
+        createdAt: gen.createdAt,
+        updatedAt: gen.updatedAt,
+        user: {
+          id: u?.id,
+          email: u?.email,
+          username: u?.username,
+          avatarUrl: u?.avatarMedia?.secureUrl ?? null,
+        },
+      },
     };
   }
 

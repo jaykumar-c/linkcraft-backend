@@ -15,6 +15,7 @@ async function bootstrap() {
       "http://localhost:5173",
       "http://localhost:5174",
       "https://app-linkcraft-ai.vercel.app",
+      "https://linkcraft-admin-panel.vercel.app",
     ],
     credentials: true,
   });

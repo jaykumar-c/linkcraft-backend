@@ -10,6 +10,8 @@ import { JwtAuthGuard } from "../../common/guards/jwt-auth.guard";
 import { AdminGuard } from "./guards/admin.guard";
 import { AdminService } from "./admin.service";
 import { AdminUserQueryDto } from "./dto/admin-user-query.dto";
+import { CurrentUser } from "../auth/decorators/current-user.decorator";
+import { User } from "../users/entities/user.entity";
 import {
   AdminAnalyticsQueryDto,
   AdminTopLinksQueryDto,
@@ -29,8 +31,8 @@ export class AdminController {
 
   @Get("users")
   @HttpCode(HttpStatus.OK)
-  async getUsers(@Query() query: AdminUserQueryDto) {
-    const result: any = await this.adminService.getUsers(query);
+  async getUsers(@Query() query: AdminUserQueryDto, @CurrentUser() user: User) {
+    const result: any = await this.adminService.getUsers(query, user.id);
     if (!result.data) {
       return {
         message: "User not found",

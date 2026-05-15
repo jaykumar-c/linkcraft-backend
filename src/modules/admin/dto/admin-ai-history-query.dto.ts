@@ -10,6 +10,10 @@ import { AiTone, AiGenerationStatus } from "src/common/enums";
 
 export class AdminAiHistoryQueryDto {
   @IsOptional()
+  @IsString()
+  id?: string;
+
+  @IsOptional()
   @Transform(({ value }) => (value ? parseInt(value) : 1))
   @IsNumber()
   @Min(1)
@@ -20,6 +24,10 @@ export class AdminAiHistoryQueryDto {
   @IsNumber()
   @Min(1)
   limit?: number = 20;
+
+  @IsOptional()
+  @IsString()
+  search?: string;
 
   @IsOptional()
   @IsString()
