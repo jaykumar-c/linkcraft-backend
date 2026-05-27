@@ -5,9 +5,6 @@ export enum LinkType {
   VIDEO = "video",
   STORE = "store",
   PORTFOLIO = "portfolio",
-  EMAIL = "email",
-  PHONE = "phone",
-  FILE = "file",
 }
 
 export enum UserPlan {
