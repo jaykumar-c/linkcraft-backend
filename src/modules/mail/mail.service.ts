@@ -1,5 +1,5 @@
 import { Injectable, Logger } from "@nestjs/common";
-import { MailerService } from "@nestjs-modules/mailer";
+import { ConfigService } from "@nestjs/config";
 import { readFile } from "fs/promises";
 import { join } from "path";
 import { EMAIL_TEMPLATES } from "./templates/email-templates.config";
@@ -10,7 +10,7 @@ export class MailService {
   private readonly logger = new Logger(MailService.name);
   private readonly templateBasePath: string;
 
-  constructor(private readonly mailerService: MailerService) {
+  constructor(private readonly configService: ConfigService) {
     this.templateBasePath =
       process.env.NODE_ENV === "production"
         ? join(process.cwd(), "dist", "src", "modules", "mail", "templates")
@@ -26,7 +26,6 @@ export class MailService {
     },
   ): Promise<void> {
     try {
-      // get email templates based on the email-event
       const templateConfig = EMAIL_TEMPLATES[event];
       if (!templateConfig) {
         throw new Error(`Email template not found for event: ${event}`);
@@ -42,23 +41,37 @@ export class MailService {
         );
       }
 
-      // find the template path
       const templatePath = join(
         this.templateBasePath,
         templateConfig.templateFile,
       );
 
       const templateContent = await readFile(templatePath, "utf-8");
-
-      // process the template
       const processedHtml = this.processTemplate(templateContent, replacements);
 
-      // call the service to send email
-      await this.mailerService.sendMail({
-        to,
-        subject: options?.subject || templateConfig.subject,
-        html: processedHtml,
+      const apiKey = this.configService.get<string>("MAIL_API_KEY")!;
+      const from = this.configService.get<string>("MAIL_FROM")!;
+      const recipients = Array.isArray(to) ? to : [to];
+
+      const response = await fetch("https://api.brevo.com/v3/smtp/email", {
+        method: "POST",
+        headers: {
+          "api-key": apiKey,
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify({
+          sender: { email: from },
+          to: recipients.map((email) => ({ email })),
+          subject: options?.subject || templateConfig.subject,
+          htmlContent: processedHtml,
+        }),
       });
+
+      if (!response.ok) {
+        const body = await response.text();
+        throw new Error(`Brevo API error ${response.status}: ${body}`);
+      }
 
       this.logger.log(`Email sent successfully for event '${event}' to ${to}`);
     } catch (error) {

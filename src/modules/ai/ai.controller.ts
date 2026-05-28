@@ -6,6 +6,7 @@ import {
   UseGuards,
   Res,
   Header,
+  Query,
 } from "@nestjs/common";
 import { Response } from "express";
 import { AiService } from "./ai.service";
@@ -61,14 +62,12 @@ export class AiController {
   }
 
   @Get("history")
-  async getHistory(@CurrentUser() user: User) {
-    const generations = await this.aiService.getUserGenerationHistory(user.id);
-    return {
-      message: "",
-      errorCode: "AIC001",
-      data: generations,
-      error: "",
-    };
+  async getHistory(
+    @CurrentUser() user: User,
+    @Query("page") page: number = 1,
+    @Query("limit") limit: number = 8,
+  ) {
+    return this.aiService.getUserGenerationHistory(user.id, page, limit);
   }
 
   @Post("apply")

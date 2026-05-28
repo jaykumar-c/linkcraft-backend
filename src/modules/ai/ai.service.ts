@@ -170,12 +170,33 @@ export class AiService {
     }
   }
 
-  async getUserGenerationHistory(userId: string): Promise<AiGeneration[]> {
-    return this.aiGenerationRepository.find({
+  async getUserGenerationHistory(
+    userId: string,
+    page: number = 1,
+    limit: number = 8,
+  ): Promise<{
+    generations: AiGeneration[];
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+  }> {
+    const skip = (page - 1) * limit;
+
+    const [generations, total] = await this.aiGenerationRepository.findAndCount({
       where: { userId },
       order: { createdAt: SORT_ORDER_TYPE.DESC },
-      take: 50,
+      skip,
+      take: limit,
     });
+
+    return {
+      generations,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    };
   }
 
   async applyGenerationToProfile(
