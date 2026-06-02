@@ -1,4 +1,4 @@
-import { IsString, IsEnum, IsOptional, IsArray, IsBoolean, ArrayMaxSize, MaxLength } from 'class-validator';
+import { IsString, IsEnum, IsOptional, IsArray, IsBoolean, IsUUID, ArrayMaxSize, MaxLength } from 'class-validator';
 
 import { AiTone, AiLength } from 'src/common/enums';
 
@@ -20,6 +20,11 @@ export class GenerateBioDto {
   @IsBoolean()
   @IsOptional()
   includeLinks?: boolean = true;
+
+  @IsArray()
+  @IsUUID('4', { each: true })
+  @IsOptional()
+  selectedLinkIds?: string[];
 
   @IsString()
   @IsOptional()

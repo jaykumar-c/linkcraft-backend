@@ -43,7 +43,11 @@ export class AiController {
     const includeLinks = body.includeLinks !== false;
 
     const userProfile: any = await this.usersService.getProfile(user.id);
-    const links = await this.linksService.getUserLinks(user.id);
+    let links = await this.linksService.getUserLinks(user.id);
+
+    if (body.selectedLinkIds?.length) {
+      links = links.filter((l: any) => body.selectedLinkIds.includes(l.id));
+    }
 
     await this.aiService.generateBioStream(
       res,
@@ -57,7 +61,7 @@ export class AiController {
         url: l.url,
         category: l.category,
       })),
-      { customPrompt: prompt, tone, length, includeLinks },
+      { customPrompt: prompt, tone, length, includeLinks, selectedLinkIds: body.selectedLinkIds },
     );
   }
 
