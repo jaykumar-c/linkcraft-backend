@@ -113,7 +113,7 @@ export class AuthService {
 
     const user = (rows?.[0] ?? null) as User | null;
     if (!user?.passwordHash) {
-      throw new UnauthorizedException({
+      throw new BadRequestException({
         errorCode: "ACR011",
         message: "Invalid email or password.",
       });
@@ -121,7 +121,7 @@ export class AuthService {
 
     const isValid = await argon2.verify(user.passwordHash, password);
     if (!isValid) {
-      throw new UnauthorizedException({
+      throw new BadRequestException({
         errorCode: "ACR011",
         message: "Invalid email or password.",
       });
